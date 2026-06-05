@@ -1,0 +1,23 @@
+services:
+  mysql:
+    container_name: market-mysql
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: market_root_2024   # 根密码
+      MYSQL_DATABASE: market                  # 自动创建的数据库
+      MYSQL_USER: market                      # 普通用户名
+      MYSQL_PASSWORD: market123               # 普通用户密码
+    volumes:
+      - market-db:/var/lib/mysql
+    ports:
+      - "5333:3306"                           # 主机端口 5333 映射到容器 3306
+    networks:
+      - market-net
+    restart: unless-stopped
+
+networks:
+  market-net:
+    driver: bridge
+
+volumes:
+  market-db:
