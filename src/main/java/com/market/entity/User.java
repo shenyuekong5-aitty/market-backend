@@ -18,6 +18,7 @@ public class User {
     private String role;          // admin / vendor / user
     private Integer status;       // 1 正常 / 0 注销
     private LocalDateTime createTime;
+    private LocalDateTime updateTime;
 
     public Long getId() {
         return id;
@@ -97,5 +98,13 @@ public class User {
 
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;
+    }
+
+    public LocalDateTime getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setUpdateTime(LocalDateTime updateTime) {
+        this.updateTime = updateTime;
     }
 }
