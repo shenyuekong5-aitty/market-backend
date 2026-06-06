@@ -16,4 +16,7 @@ public interface UserService extends IService<User> {
 
     // 修改用户资料
     User updateProfile(UpdateProfileRequest request);
+
+    // 修改密码
+    void changePassword(String username, String oldPassword, String newPassword);
 }
