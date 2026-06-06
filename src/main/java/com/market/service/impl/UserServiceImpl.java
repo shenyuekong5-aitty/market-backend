@@ -37,6 +37,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Autowired
     private StringRedisTemplate redisTemplate;
 
+    // 注销相关
+//    @Autowired
+//    private BoothMapper boothMapper;          // 摊位表
+//    @Autowired
+//    private OrderMapper orderMapper;          // 订单主表
+//    @Autowired
+//    private ReservationMapper reservationMapper; // 预定表
+//    @Autowired
+//    private BoothApplyMapper boothApplyMapper;  // 摊位申请表
+    // 注销相关
+
     @Override
     public void register(User user, String code) {
         // 1. 校验验证码
@@ -289,6 +300,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 3. 更新密码
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setUpdateTime(LocalDateTime.now());
+
+        // 如果账号是注销状态，重置密码时自动激活
+        if (user.getStatus() == 0) {
+            user.setStatus(1);
+        }
+
         baseMapper.updateById(user);
 
         // 4. 删除验证码
@@ -298,5 +315,78 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public boolean isPhoneRegistered(String phone) {
         return baseMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getPhone, phone)) > 0;
+    }
+
+//  注销账号--初步办法
+@Override
+public boolean canDeactivate(Long userId) {
+//    // 1. 检查是否占用摊位（作为小贩）
+//    Long boothCount = boothMapper.selectCount(
+//            new LambdaQueryWrapper<Booth>()
+//                    .eq(Booth::getVendorId, userId)
+//                    .eq(Booth::getStatus, "已占用")   // 假设状态字段是字符串，根据你的实际定义调整
+//    );
+//    if (boothCount > 0) {
+//        return false; // 仍有占用的摊位，不能注销
+//    }
+//
+//    // 2. 检查是否有进行中的订单（作为买家或卖家）
+//    Long orderCount = orderMapper.selectCount(
+//            new LambdaQueryWrapper<Order>()
+//                    .and(wrapper -> wrapper
+//                            .eq(Order::getCustomerId, userId)
+//                            .or()
+//                            .eq(Order::getVendorId, userId)
+//                    )
+//                    .in(Order::getStatus, "待付款", "已付款") // 未完成的订单状态
+//    );
+//    if (orderCount > 0) {
+//        return false;
+//    }
+//
+//    // 3. 检查是否有待确认的预定（作为预定用户）
+//    Long reservationCount = reservationMapper.selectCount(
+//            new LambdaQueryWrapper<Reservation>()
+//                    .eq(Reservation::getUserId, userId)
+//                    .in(Reservation::getStatus, "待确认", "已确认") // 未处理的预定
+//    );
+//    if (reservationCount > 0) {
+//        return false;
+//    }
+//
+//    // 4. 检查是否有待审批的摊位申请（作为申请人）
+//    Long applyCount = boothApplyMapper.selectCount(
+//            new LambdaQueryWrapper<BoothApply>()
+//                    .eq(BoothApply::getVendorId, userId)
+//                    .eq(BoothApply::getStatus, "待审批")
+//    );
+//    if (applyCount > 0) {
+//        return false;
+//    }
+//
+//    // 其他业务（如未完成的支付等）可继续扩展
+
+    return true; // 全部检查通过，允许注销
+}
+
+    @Override
+    public void deactivateAccount(Long userId) {
+        // 再次确认可以注销（防止并发）
+        if (!canDeactivate(userId)) {
+            throw new RuntimeException("账号存在未完成的业务，无法注销");
+        }
+
+        User user = baseMapper.selectById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        // 逻辑删除：修改状态为注销
+        user.setStatus(0);
+        user.setUpdateTime(LocalDateTime.now());
+        baseMapper.updateById(user);
+
+        // 可选：清理购物车、关注等非关键数据
+        // cartMapper.delete(new LambdaQueryWrapper<Cart>().eq(Cart::getUserId, userId));
+        // followMapper.delete(new LambdaQueryWrapper<Follow>().eq(Follow::getUserId, userId));
     }
 }

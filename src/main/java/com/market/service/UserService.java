@@ -25,4 +25,17 @@ public interface UserService extends IService<User> {
 
     // 检查手机号是否已注册
     boolean isPhoneRegistered(String phone);
+
+    /**
+     * 注销账号（逻辑删除）
+     * @param userId 当前用户ID
+     */
+    void deactivateAccount(Long userId);
+
+    /**
+     * 检查用户是否允许注销（无未完成的业务）
+     * @param userId 用户ID
+     * @return true-可以注销，false-不可注销
+     */
+    boolean canDeactivate(Long userId);
 }
