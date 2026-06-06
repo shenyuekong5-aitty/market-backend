@@ -22,4 +22,14 @@ public class SmsController {
         System.out.println("验证码：" + code);
         return Result.success("验证码已发送");
     }
+
+    @PostMapping("/send-change-phone")
+    public Result<String> sendChangePhoneCode(@RequestParam String phone) {
+        // 生成6位随机验证码
+        String code = String.format("%06d", new Random().nextInt(999999));
+        // 存入 Redis，有效期5分钟，key 前缀为 sms:change-phone:
+        redisTemplate.opsForValue().set("sms:change-phone:" + phone, code, 5, TimeUnit.MINUTES);
+        System.out.println("更换手机号验证码：" + code);   // 开发时打印，上线后替换为短信服务
+        return Result.success("验证码已发送");
+    }
 }

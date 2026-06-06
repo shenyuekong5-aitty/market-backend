@@ -11,6 +11,7 @@ import java.util.Map;
 // ===== 2. 第三方库 (Spring、MyBatis-Plus 等) =====
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.market.dto.UpdateProfileRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -213,5 +214,46 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         result.setItems(items);
         result.setMessage(totalScore >= 90 ? "账号整体状态良好" : "存在安全隐患，建议优化");
         return result;
+    }
+
+    @Override
+    public User updateProfile(UpdateProfileRequest request) {
+        User currentUser = getCurrentUser();
+
+        // 1. 直接更新的基础字段
+        currentUser.setNickname(request.getNickname());
+        currentUser.setAvatar(request.getAvatar());
+        currentUser.setGender(request.getGender());
+
+        // 2. 处理手机号修改（需双重验证）
+        if (request.getNewPhone() != null && !request.getNewPhone().isEmpty()) {
+            // 验证当前密码
+            if (request.getConfirmPassword() == null ||
+                    !passwordEncoder.matches(request.getConfirmPassword(), currentUser.getPassword())) {
+                throw new RuntimeException("密码错误，无法修改手机号");
+            }
+
+            // 验证短信验证码
+            String codeKey = "sms:change-phone:" + request.getNewPhone();
+            String savedCode = redisTemplate.opsForValue().get(codeKey);
+            if (savedCode == null || !savedCode.equals(request.getPhoneCode())) {
+                throw new RuntimeException("验证码错误或已过期");
+            }
+
+            // 检查新手机号是否已被占用
+            if (baseMapper.selectCount(new LambdaQueryWrapper<User>()
+                    .eq(User::getPhone, request.getNewPhone())
+                    .ne(User::getId, currentUser.getId())) > 0) {
+                throw new RuntimeException("该手机号已被其他用户绑定");
+            }
+
+            currentUser.setPhone(request.getNewPhone());
+            redisTemplate.delete(codeKey);  // 删除已使用的验证码
+        }
+
+        // 3. 更新修改时间
+        currentUser.setUpdateTime(LocalDateTime.now());
+        baseMapper.updateById(currentUser);
+        return currentUser;
     }
 }
