@@ -270,4 +270,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setUpdateTime(LocalDateTime.now());
         baseMapper.updateById(user);
     }
+
+    @Override
+    public void resetPassword(String phone, String code, String newPassword) {
+        // 1. 校验验证码
+        String key = "sms:reset-password:" + phone;
+        String savedCode = redisTemplate.opsForValue().get(key);
+        if (savedCode == null || !savedCode.equals(code)) {
+            throw new RuntimeException("验证码错误或已过期");
+        }
+
+        // 2. 根据手机号查找用户
+        User user = baseMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
+        if (user == null) {
+            throw new RuntimeException("该手机号未注册");
+        }
+
+        // 3. 更新密码
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setUpdateTime(LocalDateTime.now());
+        baseMapper.updateById(user);
+
+        // 4. 删除验证码
+        redisTemplate.delete(key);
+    }
+
+    @Override
+    public boolean isPhoneRegistered(String phone) {
+        return baseMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getPhone, phone)) > 0;
+    }
 }

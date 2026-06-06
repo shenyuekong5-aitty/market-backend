@@ -30,7 +30,7 @@ public class AuthController {
         return Result.success(token);
     }
 
-    // 获取当前登录用户信息（暂时返回 null，等 JWT 过滤器完成后实现）
+    // 获取当前登录用户信息
     @GetMapping("/currentUser")
     public Result<User> currentUser() {
         return Result.success(userService.getCurrentUser());
@@ -53,5 +53,21 @@ public class AuthController {
         }
         userService.changePassword(username, oldPassword, newPassword);
         return Result.success("密码修改成功");
+    }
+
+    // 重置密码（忘记密码）
+    @PostMapping("/reset-password")
+    public Result<String> resetPassword(@RequestParam String phone,
+                                        @RequestParam String code,
+                                        @RequestParam String newPassword) {
+        userService.resetPassword(phone, code, newPassword);
+        return Result.success("密码重置成功");
+    }
+
+    // 检查手机号是否已注册
+    @GetMapping("/check-phone")
+    public Result<Boolean> checkPhone(@RequestParam String phone) {
+        boolean exists = userService.isPhoneRegistered(phone);
+        return Result.success(exists);
     }
 }

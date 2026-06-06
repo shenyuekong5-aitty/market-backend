@@ -19,4 +19,10 @@ public interface UserService extends IService<User> {
 
     // 修改密码
     void changePassword(String username, String oldPassword, String newPassword);
+
+    // 重置密码（忘记密码功能）
+    void resetPassword(String phone, String code, String newPassword);
+
+    // 检查手机号是否已注册
+    boolean isPhoneRegistered(String phone);
 }
