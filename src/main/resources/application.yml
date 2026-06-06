@@ -23,3 +23,9 @@ mybatis-plus:
 jwt:
   secret: market-system-jwt-secret-key-2024-very-long-string
   expiration: 86400000   # 24小时
+
+file:
+  upload:
+    path: D:/SchoolTwo/real-fin/market-backend/uploads     # 文件存储根目录
+    avatar-path: avatar       # 头像子目录
+  static-url: /uploads        # 映射后的访问前缀

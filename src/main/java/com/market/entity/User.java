@@ -13,6 +13,7 @@ public class User {
     private String username;
     private String password;
     private String nickname;
+    /** 头像文件路径 */
     private String avatar;
     private Integer gender;
     private String role;          // admin / vendor / user
