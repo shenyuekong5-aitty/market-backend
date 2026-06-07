@@ -1,6 +1,7 @@
 package com.market.controller.admin;
 
 import com.market.common.Result;
+import com.market.dto.BoothApplyDTO;
 import com.market.entity.BoothApply;
 import com.market.service.BoothApplyService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,8 +17,8 @@ public class BoothApplyController {
     private BoothApplyService boothApplyService;
 
     @GetMapping("/pending")
-    public Result<List<BoothApply>> getPendingApplies() {
-        return Result.success(boothApplyService.listPending());
+    public Result<List<BoothApplyDTO>> getPendingApplies() {
+        return Result.success(boothApplyService.listPendingWithDetails());
     }
 
     @PutMapping("/{id}/approve")
