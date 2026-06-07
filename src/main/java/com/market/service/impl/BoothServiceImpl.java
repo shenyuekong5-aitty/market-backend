@@ -3,7 +3,9 @@ package com.market.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.market.entity.Booth;
+import com.market.entity.BoothApply;
 import com.market.entity.Market;
+import com.market.mapper.BoothApplyMapper;
 import com.market.mapper.BoothMapper;
 import com.market.mapper.MarketMapper;
 import com.market.service.BoothService;
@@ -18,6 +20,8 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
 
     @Autowired
     private MarketMapper marketMapper;
+    @Autowired
+    private BoothApplyMapper boothApplyMapper;
 
     @Override
     public List<Booth> listByMarketId(Long marketId) {
@@ -116,5 +120,21 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
         booth.setOpenTime(boothInfo.getOpenTime());
         baseMapper.updateById(booth);
         return booth;
+    }
+
+    @Override
+    public List<Booth> listFreeBoothsByMarketId(Long marketId, Long userId) {
+        List<Booth> booths = baseMapper.selectList(new LambdaQueryWrapper<Booth>()
+                .eq(Booth::getMarketId, marketId)
+                .eq(Booth::getStatus, "空闲"));
+        for (Booth booth : booths) {
+            Long count = boothApplyMapper.selectCount(new LambdaQueryWrapper<BoothApply>()
+                    .eq(BoothApply::getVendorId, userId)
+                    .eq(BoothApply::getTargetBoothId, booth.getId())
+                    .eq(BoothApply::getStatus, "待审批")
+                    .eq(BoothApply::getType, "入住"));
+            booth.setHasPendingApply(count > 0);
+        }
+        return booths;
     }
 }

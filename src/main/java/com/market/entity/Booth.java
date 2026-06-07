@@ -19,6 +19,15 @@ public class Booth {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
+    //用来判断用户是否对某个摊位的申请情况的临时字段
+    @TableField(exist = false)
+    private Boolean hasPendingApply;
+
+    public Boolean getHasPendingApply() { return hasPendingApply; }
+    public void setHasPendingApply(Boolean hasPendingApply) { this.hasPendingApply = hasPendingApply; }
+    //用来判断用户是否对某个摊位的申请情况的临时字段
+
+
     public Long getId() {
         return id;
     }

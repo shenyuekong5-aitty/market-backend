@@ -29,6 +29,7 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
     @Autowired
     private OperationLogService operationLogService;
 
+
     @Override
     public List<BoothApply> listPending() {
         return baseMapper.selectList(new LambdaQueryWrapper<BoothApply>()
@@ -109,5 +110,30 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
 
         // 记录操作日志
         operationLogService.saveLog(adminId, "审批拒绝", "拒绝了摊位申请 ID:" + applyId);
+    }
+
+
+    @Override
+    @Transactional
+    public void applyForBooth(Long userId, Long boothId) {
+        Booth booth = boothMapper.selectById(boothId);
+        if (booth == null || !"空闲".equals(booth.getStatus())) {
+            throw new RuntimeException("该摊位不可申请");
+        }
+        Long count = baseMapper.selectCount(new LambdaQueryWrapper<BoothApply>()
+                .eq(BoothApply::getVendorId, userId)
+                .eq(BoothApply::getTargetBoothId, boothId)
+                .eq(BoothApply::getStatus, "待审批")
+                .eq(BoothApply::getType, "入住"));
+        if (count > 0) {
+            throw new RuntimeException("您已提交过该摊位的入住申请，请等待审批");
+        }
+        BoothApply apply = new BoothApply();
+        apply.setType("入住");
+        apply.setVendorId(userId);
+        apply.setTargetBoothId(boothId);
+        apply.setStatus("待审批");
+        apply.setApplyTime(LocalDateTime.now());
+        baseMapper.insert(apply);
     }
 }

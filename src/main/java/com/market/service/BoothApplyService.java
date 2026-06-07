@@ -12,4 +12,6 @@ public interface BoothApplyService extends IService<BoothApply> {
 
     //申请摊位
     List<BoothApplyDTO> listPendingWithDetails();
+    //申请空闲摊位
+    void applyForBooth(Long userId, Long boothId);
 }

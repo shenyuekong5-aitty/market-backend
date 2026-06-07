@@ -8,6 +8,8 @@ import com.market.service.MarketService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class MarketServiceImpl extends ServiceImpl<MarketMapper, Market> implements MarketService {
 
@@ -54,5 +56,11 @@ public class MarketServiceImpl extends ServiceImpl<MarketMapper, Market> impleme
         // 切换状态：启用 -> 停用，停用 -> 启用
         existing.setStatus(existing.getStatus() == 1 ? 0 : 1);
         baseMapper.updateById(existing);
+    }
+
+
+    @Override
+    public List<Market> listEnabledMarkets() {
+        return baseMapper.selectList(new LambdaQueryWrapper<Market>().eq(Market::getStatus, 1));
     }
 }
