@@ -15,14 +15,10 @@ public class MarketController {
     @Autowired
     private MarketService marketService;
 
-    /**
-     * 获取当前管理员管理的集市
-     */
     @GetMapping("/my")
     public Result<Market> getMyMarket() {
-        // 从SecurityContext中获取当前管理员ID
-        // 目前先返回管理员ID为1的集市（aitty）
-        Market market = marketService.getByAdminId(1L);  // 暂时写死，后续改为动态获取
+        // 暂时写死管理员ID=1，后续改为动态获取
+        Market market = marketService.getByAdminId(1L);
         return Result.success(market);
     }
 }
