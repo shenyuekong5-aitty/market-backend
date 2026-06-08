@@ -19,4 +19,11 @@ public class OrderItem {
     private LocalDateTime reserveEndTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+
+    //非持久化字段--用于商品图片
+    @TableField(exist = false)
+    private String productImageUrl;
+
+    public String getProductImageUrl() { return productImageUrl; }
+    public void setProductImageUrl(String productImageUrl) { this.productImageUrl = productImageUrl; }
 }

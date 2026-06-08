@@ -166,8 +166,15 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Override
     public List<OrderItem> getOrderItems(Long orderId) {
-        return orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>()
+        List<OrderItem> items = orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>()
                 .eq(OrderItem::getOrderId, orderId));
+        for (OrderItem item : items) {
+            Product product = productMapper.selectById(item.getProductId());
+            if (product != null) {
+                item.setProductImageUrl(product.getImageUrl());
+            }
+        }
+        return items;
     }
 
     @Override
