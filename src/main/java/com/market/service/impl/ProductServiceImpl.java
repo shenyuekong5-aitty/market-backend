@@ -74,4 +74,11 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
         product.setSaleStatus("上架".equals(product.getSaleStatus()) ? "下架" : "上架");
         baseMapper.updateById(product);
     }
+
+    @Override
+    public List<Product> listByBoothId(Long boothId) {
+        return baseMapper.selectList(new LambdaQueryWrapper<Product>()
+                .eq(Product::getBoothId, boothId)
+                .eq(Product::getSaleStatus, "上架"));
+    }
 }

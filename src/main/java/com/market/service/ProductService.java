@@ -10,4 +10,6 @@ public interface ProductService extends IService<Product> {
     Product updateProduct(Long vendorId, Product product);
     void deleteProduct(Long vendorId, Long productId);
     void toggleSaleStatus(Long vendorId, Long productId);
+
+    List<Product> listByBoothId(Long boothId);
 }
