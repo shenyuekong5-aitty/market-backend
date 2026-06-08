@@ -16,4 +16,7 @@ public interface OrderService extends IService<Order> {
     List<OrderItem> getOrderItems(Long orderId);
     /** 取消订单 */
     void cancelOrder(Long userId, Long orderId);
+
+    //订单列表--小贩端
+    List<Order> listVendorOrders(Long vendorId);
 }

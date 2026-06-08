@@ -200,4 +200,11 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setStatus("已取消");
         baseMapper.updateById(order);
     }
+    //订单列表--小贩端
+    @Override
+    public List<Order> listVendorOrders(Long vendorId) {
+        return baseMapper.selectList(new LambdaQueryWrapper<Order>()
+                .eq(Order::getVendorId, vendorId)
+                .orderByDesc(Order::getCreateTime));
+    }
 }
