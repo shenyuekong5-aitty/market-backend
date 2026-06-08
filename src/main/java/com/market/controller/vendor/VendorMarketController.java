@@ -52,4 +52,11 @@ public class VendorMarketController {
         }
         throw new RuntimeException("用户未登录");
     }
+
+    //集市中所有摊位
+    @GetMapping("/markets/{marketId}/all-booths")
+    public Result<List<Booth>> listAllBooths(@PathVariable Long marketId) {
+        Long userId = getCurrentUserId();
+        return Result.success(boothService.listAllBoothsByMarketId(marketId, userId));
+    }
 }

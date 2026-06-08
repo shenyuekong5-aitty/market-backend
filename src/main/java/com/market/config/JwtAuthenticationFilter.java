@@ -3,6 +3,7 @@ package com.market.config;
 import com.market.common.JwtUtils;
 import com.market.entity.User;
 import com.market.service.UserService;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,28 +31,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private UserService userService;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-        // 1. 从请求头获取 token
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);  // 去掉 "Bearer " 前缀
-            // 2. 验证 token 有效性
+            String token = header.substring(7);
             if (jwtUtils.validateToken(token)) {
-                // 3. 从 token 中提取用户名
-                String username = jwtUtils.parseToken(token).getSubject();
-                // 4. 从数据库加载用户
+                Claims claims = jwtUtils.parseToken(token);
+                String username = claims.getSubject();
+                String tokenRole = claims.get("role", String.class);   // 解析角色
+
                 User user = userService.getByUsername(username);
-                if (user != null) {
-                    // 5. 将用户信息封装为 Authentication，存入 SecurityContext
+                if (user != null && user.getStatus() == 1) {
+                    // 检查角色是否变更
+                    if (!user.getRole().equals(tokenRole)) {
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write("{\"code\":401,\"message\":\"角色已变更，请重新登录\"}");
+                        return;
+                    }
+
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(user, null, new ArrayList<>());
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             }
         }
-        // 放行请求，继续后续处理
         filterChain.doFilter(request, response);
     }
 }

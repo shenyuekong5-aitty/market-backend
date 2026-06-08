@@ -16,6 +16,8 @@ public interface BoothService extends IService<Booth> {
     // 小贩端方法
     Booth getByVendorId(Long vendorId);
     Booth updateByVendor(Long vendorId, Booth boothInfo);
+    //集市中的摊位
+    List<Booth> listAllBoothsByMarketId(Long marketId, Long userId);
     //集市中空闲的摊位
     List<Booth> listFreeBoothsByMarketId(Long marketId,Long userId);
 }

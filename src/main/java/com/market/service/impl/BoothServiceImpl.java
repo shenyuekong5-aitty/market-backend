@@ -122,6 +122,24 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
         return booth;
     }
 
+    //集市中的摊位
+    @Override
+    public List<Booth> listAllBoothsByMarketId(Long marketId, Long userId) {
+        List<Booth> booths = baseMapper.selectList(new LambdaQueryWrapper<Booth>()
+                .eq(Booth::getMarketId, marketId));
+        for (Booth booth : booths) {
+            if ("空闲".equals(booth.getStatus())) {
+                Long count = boothApplyMapper.selectCount(new LambdaQueryWrapper<BoothApply>()
+                        .eq(BoothApply::getVendorId, userId)
+                        .eq(BoothApply::getTargetBoothId, booth.getId())
+                        .eq(BoothApply::getStatus, "待审批")
+                        .eq(BoothApply::getType, "入住"));
+                booth.setHasPendingApply(count > 0);
+            }
+        }
+        return booths;
+    }
+    //集市中的空闲摊位
     @Override
     public List<Booth> listFreeBoothsByMarketId(Long marketId, Long userId) {
         List<Booth> booths = baseMapper.selectList(new LambdaQueryWrapper<Booth>()
