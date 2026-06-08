@@ -1,0 +1,13 @@
+package com.market.service;
+
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.market.entity.Notification;
+import java.util.List;
+
+public interface NotificationService extends IService<Notification> {
+    List<Notification> listByReceiver(Long receiverId);
+    List<Notification> listUnreadByReceiver(Long receiverId);
+    void markAsRead(Long notificationId, Long receiverId);
+    void markAllAsRead(Long receiverId);
+    void createNotification(Long receiverId, String type, String content, Long businessId);
+}

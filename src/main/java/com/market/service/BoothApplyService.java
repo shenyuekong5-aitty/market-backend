@@ -19,4 +19,7 @@ public interface BoothApplyService extends IService<BoothApply> {
     void applyChangeBooth(Long userId, Long targetBoothId);
     //申请归还摊位
     void applyReturnBooth(Long userId);
+
+    //判断是否有未处理的订单跟预定，服务于更换摊位/归还摊位
+    boolean hasPendingReservationsOrOrders(Long userId);
 }
