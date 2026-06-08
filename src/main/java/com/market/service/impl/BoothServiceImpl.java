@@ -102,9 +102,12 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
     //小贩端
     @Override
     public Booth getByVendorId(Long vendorId) {
-        return baseMapper.selectOne(new LambdaQueryWrapper<Booth>()
+        List<Booth> booths = baseMapper.selectList(new LambdaQueryWrapper<Booth>()
                 .eq(Booth::getVendorId, vendorId)
-                .eq(Booth::getStatus, "已占用"));
+                .eq(Booth::getStatus, "已占用")
+                .orderByAsc(Booth::getCreateTime)  // 按创建时间排序
+                .last("LIMIT 1"));                 // 只取第一条
+        return booths.isEmpty() ? null : booths.get(0);
     }
 
     @Override

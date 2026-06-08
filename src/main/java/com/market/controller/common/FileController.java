@@ -23,4 +23,14 @@ public class FileController {
             return Result.error("头像上传失败：" + e.getMessage());
         }
     }
+
+    @PostMapping("/product-image")
+    public Result<String> uploadProductImage(@RequestParam("file") MultipartFile file) {
+        try {
+            String filePath = fileUploadUtils.uploadProductImage(file);
+            return Result.success(filePath);
+        } catch (IOException e) {
+            return Result.error("商品图片上传失败：" + e.getMessage());
+        }
+    }
 }

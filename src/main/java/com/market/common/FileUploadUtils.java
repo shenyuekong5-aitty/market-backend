@@ -70,4 +70,28 @@ public class FileUploadUtils {
         return fileUploadConfig.getStaticUrl() + "/" + fileUploadConfig.getAvatarPath()
                 + "/" + dateDir + "/" + filename;
     }
+
+    /**
+     * 上传商品图片，返回可访问的相对路径，例如 /uploads/product/2024-06-06/uuid.png
+     */
+    public String uploadProductImage(MultipartFile file) throws IOException {
+        if (file.isEmpty()) {
+            throw new RuntimeException("上传文件为空");
+        }
+        String dateDir = LocalDate.now().toString();
+        // 商品图片存储到 uploads/product 目录下
+        String dirPath = fileUploadConfig.getUploadPath() + File.separator
+                + "product" + File.separator + dateDir;
+        File dir = new File(dirPath);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        String originalFilename = file.getOriginalFilename();
+        String suffix = originalFilename != null ? originalFilename.substring(originalFilename.lastIndexOf(".")) : ".png";
+        String filename = UUID.randomUUID().toString().replace("-", "") + suffix;
+        File dest = new File(dir, filename);
+        file.transferTo(dest);
+        // 返回相对路径，与头像类似，前缀使用 /uploads
+        return fileUploadConfig.getStaticUrl() + "/product/" + dateDir + "/" + filename;
+    }
 }
