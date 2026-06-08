@@ -2,6 +2,7 @@ package com.market.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.market.dto.CartItemDTO;
 import com.market.entity.Cart;
 import com.market.entity.Product;
 import com.market.mapper.CartMapper;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements CartService {
@@ -22,16 +24,14 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
     @Override
     @Transactional
     public void addToCart(Long userId, Long productId, Integer quantity) {
-        // 检查商品是否存在且上架
         Product product = productMapper.selectById(productId);
         if (product == null || !"上架".equals(product.getSaleStatus())) {
             throw new RuntimeException("商品不存在或已下架");
         }
-        // 检查库存
         if (quantity > product.getStock()) {
             throw new RuntimeException("库存不足");
         }
-        // 如果购物车已有该商品，则更新数量
+
         Cart exist = baseMapper.selectOne(new LambdaQueryWrapper<Cart>()
                 .eq(Cart::getUserId, userId)
                 .eq(Cart::getProductId, productId));
@@ -45,12 +45,6 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
             cart.setQuantity(quantity);
             baseMapper.insert(cart);
         }
-    }
-
-    @Override
-    public List<Cart> listByUser(Long userId) {
-        return baseMapper.selectList(new LambdaQueryWrapper<Cart>()
-                .eq(Cart::getUserId, userId));
     }
 
     @Override
@@ -82,5 +76,26 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
     @Transactional
     public void clearCart(Long userId) {
         baseMapper.delete(new LambdaQueryWrapper<Cart>().eq(Cart::getUserId, userId));
+    }
+
+    @Override
+    public List<CartItemDTO> listUserCart(Long userId) {
+        List<Cart> cartItems = baseMapper.selectList(new LambdaQueryWrapper<Cart>()
+                .eq(Cart::getUserId, userId));
+
+        return cartItems.stream().map(cart -> {
+            Product product = productMapper.selectById(cart.getProductId());
+            CartItemDTO dto = new CartItemDTO();
+            dto.setCartId(cart.getId());
+            dto.setProductId(cart.getProductId());
+            dto.setQuantity(cart.getQuantity());
+            if (product != null) {
+                dto.setProductName(product.getName());
+                dto.setProductPrice(product.getPrice());
+                dto.setProductImageUrl(product.getImageUrl());
+                dto.setStock(product.getStock());
+            }
+            return dto;
+        }).collect(Collectors.toList());
     }
 }

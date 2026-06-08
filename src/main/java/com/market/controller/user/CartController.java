@@ -1,6 +1,7 @@
 package com.market.controller.user;
 
 import com.market.common.Result;
+import com.market.dto.CartItemDTO;
 import com.market.entity.Cart;
 import com.market.entity.User;
 import com.market.service.CartService;
@@ -27,9 +28,9 @@ public class CartController {
 
     // 查看购物车列表
     @GetMapping
-    public Result<List<Cart>> list() {
+    public Result<List<CartItemDTO>> list() {
         Long userId = getCurrentUserId();
-        return Result.success(cartService.listByUser(userId));
+        return Result.success(cartService.listUserCart(userId));
     }
 
     // 修改数量
