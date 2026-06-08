@@ -59,4 +59,20 @@ public class VendorMarketController {
         Long userId = getCurrentUserId();
         return Result.success(boothService.listAllBoothsByMarketId(marketId, userId));
     }
+
+    // 小贩提交更换摊位申请
+    @PostMapping("/change-booth")
+    public Result<String> applyChangeBooth(@RequestParam Long targetBoothId) {
+        Long userId = getCurrentUserId();
+        boothApplyService.applyChangeBooth(userId, targetBoothId);
+        return Result.success("更换摊位申请已提交");
+    }
+
+    // 小贩提交归还摊位申请
+    @PostMapping("/return-booth")
+    public Result<String> applyReturnBooth() {
+        Long userId = getCurrentUserId();
+        boothApplyService.applyReturnBooth(userId);
+        return Result.success("归还摊位申请已提交");
+    }
 }

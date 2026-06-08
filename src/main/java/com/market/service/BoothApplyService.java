@@ -14,4 +14,9 @@ public interface BoothApplyService extends IService<BoothApply> {
     List<BoothApplyDTO> listPendingWithDetails();
     //申请空闲摊位
     void applyForBooth(Long userId, Long boothId);
+
+    //申请改变摊位
+    void applyChangeBooth(Long userId, Long targetBoothId);
+    //申请归还摊位
+    void applyReturnBooth(Long userId);
 }
