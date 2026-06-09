@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.market.dto.ReservationDTO;
 import com.market.entity.*;
 import com.market.mapper.*;
+import com.market.service.NotificationService;
 import com.market.service.ReservationService;
+import com.market.websocket.NotificationEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,8 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
     private OrderItemMapper orderItemMapper;
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private NotificationService notificationService;
 
     @Override
     @Transactional
@@ -60,6 +64,15 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         reservation.setVendorId(booth.getVendorId());
         reservation.setStatus("待确认");
         baseMapper.insert(reservation);
+
+        // 数据库通知 + WebSocket 通知摊主
+        notificationService.createNotification(
+                reservation.getVendorId(),
+                "预定请求",
+                "用户 " + getUserName(userId) + " 预定了您的商品「" + product.getName() + "」，请及时处理",
+                reservation.getId()
+        );
+        NotificationEndpoint.sendToUser(reservation.getVendorId().toString(), "new_notification");
     }
 
     @Override
@@ -131,6 +144,15 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         reservation.setStatus("已确认");
         reservation.setOrderId(order.getId());
         baseMapper.updateById(reservation);
+
+        // 数据库通知 + WebSocket 通知用户
+        notificationService.createNotification(
+                reservation.getUserId(),
+                "预定结果",
+                "您的商品「" + product.getName() + "」预定已被摊主确认，订单已生成，请尽快付款",
+                reservation.getId()
+        );
+        NotificationEndpoint.sendToUser(reservation.getUserId().toString(), "new_notification");
     }
 
     @Override
@@ -144,6 +166,16 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         }
         reservation.setStatus("已拒绝");
         baseMapper.updateById(reservation);
+
+        // 数据库通知 + WebSocket 通知用户
+        Product product = productMapper.selectById(reservation.getProductId());
+        notificationService.createNotification(
+                reservation.getUserId(),
+                "预定结果",
+                "您的商品「" + (product != null ? product.getName() : "未知") + "」预定已被摊主拒绝",
+                reservation.getId()
+        );
+        NotificationEndpoint.sendToUser(reservation.getUserId().toString(), "new_notification");
     }
 
     @Override
@@ -157,6 +189,16 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         }
         reservation.setStatus("已取消");
         baseMapper.updateById(reservation);
+
+        // 数据库通知 + WebSocket 通知摊主
+        Product product = productMapper.selectById(reservation.getProductId());
+        notificationService.createNotification(
+                reservation.getVendorId(),
+                "预定结果",
+                "用户 " + getUserName(userId) + " 取消了商品「" + (product != null ? product.getName() : "未知") + "」的预定",
+                reservation.getId()
+        );
+        NotificationEndpoint.sendToUser(reservation.getVendorId().toString(), "new_notification");
     }
 
     private ReservationDTO toDTO(Reservation r) {
@@ -181,5 +223,10 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
             dto.setUserName(user.getNickname() != null ? user.getNickname() : user.getUsername());
         }
         return dto;
+    }
+
+    private String getUserName(Long userId) {
+        User user = userMapper.selectById(userId);
+        return user != null ? (user.getNickname() != null ? user.getNickname() : user.getUsername()) : "未知";
     }
 }

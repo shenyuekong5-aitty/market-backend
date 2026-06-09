@@ -10,8 +10,8 @@ import com.market.mapper.OrderItemMapper;
 import com.market.mapper.ProductMapper;
 import com.market.mapper.ReservationMapper;
 import com.market.service.NotificationService;
+import com.market.websocket.NotificationEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,9 +21,6 @@ import java.util.List;
 
 @Component
 public class OrderScheduler {
-
-    @Value("${order.cancel-timeout-minutes:30}")
-    private int cancelTimeoutMinutes;
 
     @Autowired
     private OrderMapper orderMapper;
@@ -36,18 +33,17 @@ public class OrderScheduler {
     @Autowired
     private NotificationService notificationService;
 
-    // 每 30 秒执行一次（可根据需要调整）
+    // 每 30 秒执行一次
     @Scheduled(fixedDelay = 30000)
     @Transactional
     public void cancelUnpaidOrders() {
-        // 查询所有待付款且创建时间超过30分钟的订单
         LocalDateTime deadline = LocalDateTime.now().minusMinutes(30);
         List<Order> orders = orderMapper.selectList(new LambdaQueryWrapper<Order>()
                 .eq(Order::getStatus, "待付款")
                 .le(Order::getCreateTime, deadline));
 
         for (Order order : orders) {
-            // 1. 将订单状态改为已取消
+            // 1. 取消订单
             order.setStatus("已取消");
             orderMapper.updateById(order);
 
@@ -62,7 +58,7 @@ public class OrderScheduler {
                 }
             }
 
-            // 3. 取消关联的预定（如果有）
+            // 3. 取消关联预定
             Reservation reservation = reservationMapper.selectOne(
                     new LambdaQueryWrapper<Reservation>()
                             .eq(Reservation::getOrderId, order.getId())
@@ -70,22 +66,33 @@ public class OrderScheduler {
             if (reservation != null) {
                 reservation.setStatus("已取消");
                 reservationMapper.updateById(reservation);
-                // 发送通知给预定用户
+                // 通知预定用户
                 notificationService.createNotification(
                         reservation.getUserId(),
                         "预定结果",
                         "您的预定已被取消（订单超时未支付）",
                         reservation.getId()
                 );
+                NotificationEndpoint.sendToUser(reservation.getUserId().toString(), "new_notification");
             }
 
-            // 4. 发送通知给订单客户
+            // 4. 通知订单客户
             notificationService.createNotification(
                     order.getCustomerId(),
                     "订单状态",
                     "您的订单 " + order.getOrderNo() + " 因超时未支付已自动取消",
                     order.getId()
             );
+            NotificationEndpoint.sendToUser(order.getCustomerId().toString(), "new_notification");
+
+            // 5. 通知摊主
+            notificationService.createNotification(
+                    order.getVendorId(),
+                    "订单状态",
+                    "订单 " + order.getOrderNo() + " 因用户超时未支付已自动取消",
+                    order.getId()
+            );
+            NotificationEndpoint.sendToUser(order.getVendorId().toString(), "new_notification");
         }
     }
 }
