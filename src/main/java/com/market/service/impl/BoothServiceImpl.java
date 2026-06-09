@@ -24,7 +24,12 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
     private BoothApplyMapper boothApplyMapper;
 
     @Override
-    public List<Booth> listByMarketId(Long marketId) {
+    public List<Booth> listByMarketId(Long marketId, Long adminId) {
+        // 校验该集市是否属于当前管理员
+        Market market = marketMapper.selectById(marketId);
+        if (market == null || !market.getAdminId().equals(adminId)) {
+            throw new RuntimeException("无权查看该集市的摊位");
+        }
         return baseMapper.selectList(new LambdaQueryWrapper<Booth>()
                 .eq(Booth::getMarketId, marketId));
     }

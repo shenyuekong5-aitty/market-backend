@@ -36,6 +36,9 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
     private CartMapper cartMapper;
     @Autowired
     private NotificationService notificationService;
+    @Autowired
+    private MarketMapper marketMapper;
+
 
     @Override
     public List<BoothApply> listPending() {
@@ -74,6 +77,9 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         if (apply == null || !"待审批".equals(apply.getStatus())) {
             throw new RuntimeException("申请不存在或已处理");
         }
+
+        // 校验管理员是否有权限审批该申请
+        validateAdminPermission(apply, adminId);
 
         apply.setStatus("通过");
         apply.setApproveAdminId(adminId);
@@ -190,6 +196,10 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         if (apply == null || !"待审批".equals(apply.getStatus())) {
             throw new RuntimeException("申请不存在或已处理");
         }
+
+        // 校验管理员是否有权限审批该申请
+        validateAdminPermission(apply, adminId);
+
         apply.setStatus("拒绝");
         apply.setApproveAdminId(adminId);
         apply.setProcessTime(LocalDateTime.now());
@@ -298,5 +308,69 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
                         .in(Order::getStatus, "待付款", "已付款")
         );
         return pendingOrderCount > 0;
+    }
+
+    //根据管理员ID查询待审批申请（只查自己集市下的）
+    @Override
+    public List<BoothApply> listPendingByAdmin(Long adminId) {
+        // 1. 找到该管理员管理的集市
+        Market market = marketMapper.selectOne(new LambdaQueryWrapper<Market>()
+                .eq(Market::getAdminId, adminId));
+        if (market == null) return new ArrayList<>();
+
+        // 2. 找到该集市下的所有摊位ID
+        List<Booth> booths = boothMapper.selectList(new LambdaQueryWrapper<Booth>()
+                .eq(Booth::getMarketId, market.getId()));
+        if (booths.isEmpty()) return new ArrayList<>();
+
+        List<Long> boothIds = booths.stream().map(Booth::getId).collect(Collectors.toList());
+
+        // 3. 查询这些摊位相关的待审批申请（目标摊位ID或原摊位ID匹配）
+        return baseMapper.selectList(new LambdaQueryWrapper<BoothApply>()
+                .eq(BoothApply::getStatus, "待审批")
+                .and(w -> w.in(BoothApply::getTargetBoothId, boothIds)
+                        .or()
+                        .in(BoothApply::getOriginBoothId, boothIds)));
+    }
+
+    @Override
+    public List<BoothApplyDTO> listPendingWithDetailsByAdmin(Long adminId) {
+        List<BoothApply> applies = listPendingByAdmin(adminId);
+        return applies.stream().map(apply -> {
+            BoothApplyDTO dto = new BoothApplyDTO();
+            dto.setId(apply.getId());
+            dto.setType(apply.getType());
+            dto.setVendorId(apply.getVendorId());
+            dto.setTargetBoothId(apply.getTargetBoothId());
+            dto.setStatus(apply.getStatus());
+            dto.setApplyTime(apply.getApplyTime());
+
+            User vendor = userMapper.selectById(apply.getVendorId());
+            dto.setVendorName(vendor != null ? vendor.getNickname() : "未知用户");
+
+            Booth booth = boothMapper.selectById(apply.getTargetBoothId());
+            dto.setTargetBoothTitle(booth != null ? booth.getTitle() : "未知摊位");
+
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 校验管理员是否有权限审批该申请
+     * 通过申请关联的摊位（目标摊位或原摊位）找到所属集市，判断该集市的管理员是否为当前管理员
+     */
+    private void validateAdminPermission(BoothApply apply, Long adminId) {
+        Long boothId = apply.getTargetBoothId() != null ? apply.getTargetBoothId() : apply.getOriginBoothId();
+        if (boothId == null) {
+            throw new RuntimeException("申请信息不完整");
+        }
+        Booth booth = boothMapper.selectById(boothId);
+        if (booth == null) {
+            throw new RuntimeException("关联摊位不存在");
+        }
+        Market market = marketMapper.selectById(booth.getMarketId());
+        if (market == null || !market.getAdminId().equals(adminId)) {
+            throw new RuntimeException("无权审批该申请，该摊位不属于您管理的集市");
+        }
     }
 }
