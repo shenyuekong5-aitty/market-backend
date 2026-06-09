@@ -24,4 +24,7 @@ public interface OrderService extends IService<Order> {
     //订单
     Map<String, Object> getAdminIncomeStats(Long adminId);
     Map<String, Object> getVendorIncomeStats(Long vendorId);
+
+    //收获
+    void confirmReceive(Long userId, Long orderId);
 }

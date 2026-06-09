@@ -342,4 +342,19 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         result.put("orderDetails", orderDetails);
         return result;
     }
+
+    //收获
+    @Override
+    @Transactional
+    public void confirmReceive(Long userId, Long orderId) {
+        Order order = baseMapper.selectById(orderId);
+        if (order == null || !order.getCustomerId().equals(userId)) {
+            throw new RuntimeException("订单不存在或无权操作");
+        }
+        if (!"已付款".equals(order.getStatus())) {
+            throw new RuntimeException("只有已付款的订单才能确认收货");
+        }
+        order.setStatus("已完成");
+        baseMapper.updateById(order);
+    }
 }

@@ -62,4 +62,12 @@ public class OrderController {
         }
         throw new RuntimeException("用户未登录");
     }
+
+    //收获
+    @PutMapping("/{orderId}/confirm-receive")
+    public Result<String> confirmReceive(@PathVariable Long orderId) {
+        Long userId = getCurrentUserId();
+        orderService.confirmReceive(userId, orderId);
+        return Result.success("已确认收货，订单完成");
+    }
 }
