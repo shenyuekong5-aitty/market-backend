@@ -7,6 +7,7 @@ import com.market.entity.User;
 import com.market.mapper.NotificationMapper;
 import com.market.mapper.UserMapper;
 import com.market.service.NotificationService;
+import com.market.websocket.NotificationEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -90,5 +91,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
             return n;
         }).collect(Collectors.toList());
         saveBatch(notifications);
+        // 通知所有在线用户
+        NotificationEndpoint.broadcast("new_notification");
     }
 }
