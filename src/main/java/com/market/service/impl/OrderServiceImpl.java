@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -31,6 +32,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private OrderItemMapper orderItemMapper;
     @Autowired
     private UserMapper userMapper;
+    //订单
+    @Autowired
+    private MarketMapper marketMapper;
 
     @Override
     @Transactional
@@ -206,5 +210,136 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         return baseMapper.selectList(new LambdaQueryWrapper<Order>()
                 .eq(Order::getVendorId, vendorId)
                 .orderByDesc(Order::getCreateTime));
+    }
+
+
+    //订单
+    //admin
+    @Override
+    public Map<String, Object> getAdminIncomeStats(Long adminId) {
+        // 1. 找到该管理员管理的集市
+        Market market = marketMapper.selectOne(new LambdaQueryWrapper<Market>()
+                .eq(Market::getAdminId, adminId));
+        if (market == null) {
+            throw new RuntimeException("您还没有管理的集市");
+        }
+        Long marketId = market.getId();
+
+        // 2. 已完成订单统计
+        List<Order> orders = baseMapper.selectList(new LambdaQueryWrapper<Order>()
+                .eq(Order::getMarketId, marketId)
+                .eq(Order::getStatus, "已完成"));
+
+        // 总收入
+        BigDecimal totalIncome = orders.stream()
+                .map(Order::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        int totalOrders = orders.size();
+
+        // 今日收入（当天已完成订单）
+        LocalDate today = LocalDate.now();
+        BigDecimal todayIncome = orders.stream()
+                .filter(o -> o.getCreateTime().toLocalDate().equals(today))
+                .map(Order::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // 最近7天趋势
+        List<Map<String, Object>> trend = new ArrayList<>();
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = LocalDate.now().minusDays(i);
+            BigDecimal dayIncome = orders.stream()
+                    .filter(o -> o.getCreateTime().toLocalDate().equals(date))
+                    .map(Order::getTotalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            Map<String, Object> point = new HashMap<>();
+            point.put("date", date.toString().substring(5)); // MM-DD
+            point.put("amount", dayIncome);
+            trend.add(point);
+        }
+
+        // 各摊位收入占比
+        List<Booth> booths = boothMapper.selectList(new LambdaQueryWrapper<Booth>()
+                .eq(Booth::getMarketId, marketId));
+        List<Map<String, Object>> boothIncome = new ArrayList<>();
+        for (Booth booth : booths) {
+            BigDecimal income = orders.stream()
+                    .filter(o -> o.getBoothId() != null && o.getBoothId().equals(booth.getId()))
+                    .map(Order::getTotalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            Map<String, Object> item = new HashMap<>();
+            item.put("name", booth.getTitle());
+            item.put("value", income);
+            boothIncome.add(item);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalIncome", totalIncome);
+        result.put("totalOrders", totalOrders);
+        result.put("completedOrders", totalOrders); // 已完成订单数就是总数
+        result.put("todayIncome", todayIncome);
+        result.put("trend", trend);
+        result.put("boothIncome", boothIncome);
+        return result;
+    }
+    //vendor
+    @Override
+    public Map<String, Object> getVendorIncomeStats(Long vendorId) {
+        // 已完成订单
+        List<Order> orders = baseMapper.selectList(new LambdaQueryWrapper<Order>()
+                .eq(Order::getVendorId, vendorId)
+                .eq(Order::getStatus, "已完成"));
+
+        BigDecimal totalIncome = orders.stream()
+                .map(Order::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        int totalOrders = orders.size();
+
+        LocalDate today = LocalDate.now();
+        BigDecimal todayIncome = orders.stream()
+                .filter(o -> o.getCreateTime().toLocalDate().equals(today))
+                .map(Order::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // 最近7天趋势
+        List<Map<String, Object>> trend = new ArrayList<>();
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = LocalDate.now().minusDays(i);
+            BigDecimal dayIncome = orders.stream()
+                    .filter(o -> o.getCreateTime().toLocalDate().equals(date))
+                    .map(Order::getTotalAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            Map<String, Object> point = new HashMap<>();
+            point.put("date", date.toString().substring(5));
+            point.put("amount", dayIncome);
+            trend.add(point);
+        }
+
+        // 订单明细列表（最近20条）
+        List<Map<String, Object>> orderDetails = new ArrayList<>();
+        List<Order> recentOrders = orders.stream()
+                .sorted((a,b) -> b.getCreateTime().compareTo(a.getCreateTime()))
+                .limit(20)
+                .collect(Collectors.toList());
+        for (Order o : recentOrders) {
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("orderNo", o.getOrderNo());
+            detail.put("totalAmount", o.getTotalAmount());
+            detail.put("createTime", o.getCreateTime());
+            // 查询该订单的商品列表
+            List<OrderItem> items = orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>()
+                    .eq(OrderItem::getOrderId, o.getId()));
+            List<String> productNames = items.stream().map(OrderItem::getProductName).collect(Collectors.toList());
+            detail.put("productNames", String.join(", ", productNames));
+            orderDetails.add(detail);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalIncome", totalIncome);
+        result.put("totalOrders", totalOrders);
+        result.put("completedOrders", totalOrders);
+        result.put("todayIncome", todayIncome);
+        result.put("trend", trend);
+        result.put("orderDetails", orderDetails);
+        return result;
     }
 }

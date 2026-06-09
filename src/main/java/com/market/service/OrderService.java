@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.market.entity.Order;
 import com.market.entity.OrderItem;
 import java.util.List;
+import java.util.Map;
 
 public interface OrderService extends IService<Order> {
     /** 从购物车生成订单（按摊主拆分） */
@@ -19,4 +20,8 @@ public interface OrderService extends IService<Order> {
 
     //订单列表--小贩端
     List<Order> listVendorOrders(Long vendorId);
+
+    //订单
+    Map<String, Object> getAdminIncomeStats(Long adminId);
+    Map<String, Object> getVendorIncomeStats(Long vendorId);
 }
