@@ -8,6 +8,7 @@ import com.market.mapper.*;
 import com.market.service.BoothApplyService;
 import com.market.service.NotificationService;
 import com.market.service.OperationLogService;
+import com.market.websocket.NotificationEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,7 +39,6 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
     private NotificationService notificationService;
     @Autowired
     private MarketMapper marketMapper;
-
 
     @Override
     public List<BoothApply> listPending() {
@@ -96,6 +96,8 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
                     "您的摊位入住申请已通过审批，您已成为小贩。",
                     apply.getId()
             );
+            // WebSocket 通知申请人
+            NotificationEndpoint.sendToUser(apply.getVendorId().toString(), "new_notification");
         } else if ("更换".equals(type)) {
             handleApproveChange(apply);
             // 发送通知：更换成功
@@ -105,6 +107,7 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
                     "您的摊位更换申请已通过审批，新摊位已分配。",
                     apply.getId()
             );
+            NotificationEndpoint.sendToUser(apply.getVendorId().toString(), "new_notification");
         } else if ("归还".equals(type)) {
             handleApproveReturn(apply);
             // 发送通知：归还成功，角色可能变更
@@ -114,6 +117,7 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
                     "您的摊位归还申请已通过审批。",
                     apply.getId()
             );
+            NotificationEndpoint.sendToUser(apply.getVendorId().toString(), "new_notification");
         }
 
         operationLogService.saveLog(adminId, "审批通过", "通过了摊位申请 ID:" + applyId + " 类型:" + type);
@@ -205,6 +209,16 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         apply.setProcessTime(LocalDateTime.now());
         baseMapper.updateById(apply);
 
+        // 发送拒绝通知
+        notificationService.createNotification(
+                apply.getVendorId(),
+                "申请结果",
+                "您的摊位申请已被拒绝（申请ID：" + applyId + "）",
+                apply.getId()
+        );
+        // WebSocket 通知申请人
+        NotificationEndpoint.sendToUser(apply.getVendorId().toString(), "new_notification");
+
         operationLogService.saveLog(adminId, "审批拒绝", "拒绝了摊位申请 ID:" + applyId);
     }
 
@@ -230,6 +244,8 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         apply.setStatus("待审批");
         apply.setApplyTime(LocalDateTime.now());
         baseMapper.insert(apply);
+        // 广播通知所有在线管理员（或指定管理员）
+        NotificationEndpoint.broadcast("new_notification");
     }
 
     @Override
@@ -263,6 +279,7 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         apply.setStatus("待审批");
         apply.setApplyTime(LocalDateTime.now());
         baseMapper.insert(apply);
+        NotificationEndpoint.broadcast("new_notification");
     }
 
     @Override
@@ -291,6 +308,7 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         apply.setStatus("待审批");
         apply.setApplyTime(LocalDateTime.now());
         baseMapper.insert(apply);
+        NotificationEndpoint.broadcast("new_notification");
     }
 
     @Override
@@ -310,22 +328,18 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         return pendingOrderCount > 0;
     }
 
-    //根据管理员ID查询待审批申请（只查自己集市下的）
     @Override
     public List<BoothApply> listPendingByAdmin(Long adminId) {
-        // 1. 找到该管理员管理的集市
         Market market = marketMapper.selectOne(new LambdaQueryWrapper<Market>()
                 .eq(Market::getAdminId, adminId));
         if (market == null) return new ArrayList<>();
 
-        // 2. 找到该集市下的所有摊位ID
         List<Booth> booths = boothMapper.selectList(new LambdaQueryWrapper<Booth>()
                 .eq(Booth::getMarketId, market.getId()));
         if (booths.isEmpty()) return new ArrayList<>();
 
         List<Long> boothIds = booths.stream().map(Booth::getId).collect(Collectors.toList());
 
-        // 3. 查询这些摊位相关的待审批申请（目标摊位ID或原摊位ID匹配）
         return baseMapper.selectList(new LambdaQueryWrapper<BoothApply>()
                 .eq(BoothApply::getStatus, "待审批")
                 .and(w -> w.in(BoothApply::getTargetBoothId, boothIds)
@@ -355,10 +369,6 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         }).collect(Collectors.toList());
     }
 
-    /**
-     * 校验管理员是否有权限审批该申请
-     * 通过申请关联的摊位（目标摊位或原摊位）找到所属集市，判断该集市的管理员是否为当前管理员
-     */
     private void validateAdminPermission(BoothApply apply, Long adminId) {
         Long boothId = apply.getTargetBoothId() != null ? apply.getTargetBoothId() : apply.getOriginBoothId();
         if (boothId == null) {
