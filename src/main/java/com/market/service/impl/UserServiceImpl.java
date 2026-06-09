@@ -417,4 +417,36 @@ public boolean canDeactivate(Long userId) {
         newAdmin.setStatus(1);
         baseMapper.insert(newAdmin);
     }
+
+    @Override
+    public List<User> listAllAdmins(Long superAdminId) {
+        // 校验是否为超级管理员
+        User superAdmin = baseMapper.selectById(superAdminId);
+        if (superAdmin == null || !Integer.valueOf(1).equals(superAdmin.getIsSuperAdmin())) {
+            throw new RuntimeException("无权查看管理员列表");
+        }
+        // 返回所有 role='admin' 的用户
+        return baseMapper.selectList(new LambdaQueryWrapper<User>()
+                .eq(User::getRole, "admin")
+                .orderByAsc(User::getCreateTime));
+    }
+
+    @Override
+    @Transactional
+    public void toggleAdminStatus(Long superAdminId, Long adminId) {
+        User superAdmin = baseMapper.selectById(superAdminId);
+        if (superAdmin == null || !Integer.valueOf(1).equals(superAdmin.getIsSuperAdmin())) {
+            throw new RuntimeException("无权操作");
+        }
+        User admin = baseMapper.selectById(adminId);
+        if (admin == null || !"admin".equals(admin.getRole())) {
+            throw new RuntimeException("管理员不存在");
+        }
+        // 不能停用自己
+        if (admin.getId().equals(superAdminId)) {
+            throw new RuntimeException("不能停用自己的账号");
+        }
+        admin.setStatus(admin.getStatus() == 1 ? 0 : 1);
+        baseMapper.updateById(admin);
+    }
 }

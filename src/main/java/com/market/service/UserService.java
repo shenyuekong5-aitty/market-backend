@@ -5,6 +5,8 @@ import com.market.dto.UpdateProfileRequest;
 import com.market.entity.User;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.util.List;
+
 public interface UserService extends IService<User> {
     void register(User user, String code);
     String login(String username, String password, String role);
@@ -43,4 +45,10 @@ public interface UserService extends IService<User> {
     //创建超级管理员
     // 超级管理员创建普通管理员账号
     void createAdmin(Long superAdminId, User newAdmin);
+
+    // 获取所有管理员列表（仅超级管理员可调用）
+    List<User> listAllAdmins(Long superAdminId);
+
+    // 切换管理员状态（启用/停用）
+    void toggleAdminStatus(Long superAdminId, Long adminId);
 }
