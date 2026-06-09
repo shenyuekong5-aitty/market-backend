@@ -38,4 +38,9 @@ public interface UserService extends IService<User> {
      * @return true-可以注销，false-不可注销
      */
     boolean canDeactivate(Long userId);
+
+
+    //创建超级管理员
+    // 超级管理员创建普通管理员账号
+    void createAdmin(Long superAdminId, User newAdmin);
 }

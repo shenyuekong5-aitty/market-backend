@@ -17,6 +17,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 // ===== 3. 项目内部模块 =====
 import com.market.common.JwtUtils;
@@ -388,5 +389,32 @@ public boolean canDeactivate(Long userId) {
         // 可选：清理购物车、关注等非关键数据
         // cartMapper.delete(new LambdaQueryWrapper<Cart>().eq(Cart::getUserId, userId));
         // followMapper.delete(new LambdaQueryWrapper<Follow>().eq(Follow::getUserId, userId));
+    }
+
+    //创建超级管理员
+    @Override
+    @Transactional
+    public void createAdmin(Long superAdminId, User newAdmin) {
+        // 检查操作者是否为超级管理员
+        User superAdmin = baseMapper.selectById(superAdminId);
+        if (superAdmin == null || !"admin".equals(superAdmin.getRole()) || !Integer.valueOf(1).equals(superAdmin.getIsSuperAdmin())) {
+            throw new RuntimeException("无权创建管理员账号");
+        }
+        // 检查账号是否已存在
+        if (baseMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, newAdmin.getUsername())) > 0) {
+            throw new RuntimeException("账号已存在");
+        }
+        // 检查手机号是否已存在
+        if (newAdmin.getPhone() != null && !newAdmin.getPhone().isEmpty()) {
+            if (baseMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getPhone, newAdmin.getPhone())) > 0) {
+                throw new RuntimeException("手机号已被注册");
+            }
+        }
+        // 设置管理员属性
+        newAdmin.setPassword(passwordEncoder.encode(newAdmin.getPassword()));
+        newAdmin.setRole("admin");
+        newAdmin.setIsSuperAdmin(0);   // 创建的是普通管理员
+        newAdmin.setStatus(1);
+        baseMapper.insert(newAdmin);
     }
 }

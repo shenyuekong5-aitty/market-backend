@@ -17,6 +17,7 @@ public class User {
     private String avatar;
     private Integer gender;
     private String role;          // admin / vendor / user
+    private Integer isSuperAdmin;
     private Integer status;       // 1 正常 / 0 注销
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -107,5 +108,13 @@ public class User {
 
     public void setUpdateTime(LocalDateTime updateTime) {
         this.updateTime = updateTime;
+    }
+
+    public Integer getIsSuperAdmin() {
+        return isSuperAdmin;
+    }
+
+    public void setIsSuperAdmin(Integer isSuperAdmin) {
+        this.isSuperAdmin = isSuperAdmin;
     }
 }
