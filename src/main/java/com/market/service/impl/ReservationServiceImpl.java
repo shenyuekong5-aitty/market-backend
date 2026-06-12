@@ -123,6 +123,7 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         order.setMarketId(booth.getMarketId());
         order.setBoothId(booth.getId());
         order.setTotalAmount(product.getPrice());
+        order.setCreateTime(LocalDateTime.now());  // ✅ 使用应用服务器当前时间，避免时区问题导致订单立即被超时取消
         order.setStatus("待付款");
         orderMapper.insert(order);
 
