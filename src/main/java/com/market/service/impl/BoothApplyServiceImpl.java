@@ -225,10 +225,13 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
     @Override
     @Transactional
     public void applyForBooth(Long userId, Long boothId) {
+        System.out.println("[applyForBooth] 收到入住申请: userId=" + userId + ", boothId=" + boothId);
         Booth booth = boothMapper.selectById(boothId);
         if (booth == null || !"空闲".equals(booth.getStatus())) {
+            System.out.println("[applyForBooth] 摊位不可申请: booth=" + (booth != null ? booth.getStatus() : "null"));
             throw new RuntimeException("该摊位不可申请");
         }
+        System.out.println("[applyForBooth] 摊位信息: boothId=" + booth.getId() + ", marketId=" + booth.getMarketId() + ", title=" + booth.getTitle());
         Long count = baseMapper.selectCount(new LambdaQueryWrapper<BoothApply>()
                 .eq(BoothApply::getVendorId, userId)
                 .eq(BoothApply::getTargetBoothId, boothId)
@@ -244,8 +247,10 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         apply.setStatus("待审批");
         apply.setApplyTime(LocalDateTime.now());
         baseMapper.insert(apply);
-        // 广播通知所有在线管理员（或指定管理员）
-        NotificationEndpoint.broadcast("new_notification");
+        System.out.println("[applyForBooth] 申请已创建: applyId=" + apply.getId() + ", type=入住, vendorId=" + userId + ", targetBoothId=" + boothId);
+
+        // 通知摊位所属集市的管理员
+        notifyAdmin(booth, userId, "入住", apply.getId());
     }
 
     @Override
@@ -279,7 +284,9 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         apply.setStatus("待审批");
         apply.setApplyTime(LocalDateTime.now());
         baseMapper.insert(apply);
-        NotificationEndpoint.broadcast("new_notification");
+
+        // 通知目标摊位所属集市的管理员
+        notifyAdmin(targetBooth, userId, "更换", apply.getId());
     }
 
     @Override
@@ -308,7 +315,9 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         apply.setStatus("待审批");
         apply.setApplyTime(LocalDateTime.now());
         baseMapper.insert(apply);
-        NotificationEndpoint.broadcast("new_notification");
+
+        // 通知当前摊位所属集市的管理员
+        notifyAdmin(currentBooth, userId, "归还", apply.getId());
     }
 
     @Override
@@ -330,21 +339,47 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
 
     @Override
     public List<BoothApply> listPendingByAdmin(Long adminId) {
+        System.out.println("[listPendingByAdmin] 查询待审批申请: adminId=" + adminId);
+
+        // 超级管理员：返回所有待审批申请，不受集市限制
+        User admin = userMapper.selectById(adminId);
+        if (admin != null && admin.getIsSuperAdmin() != null && admin.getIsSuperAdmin() == 1) {
+            System.out.println("[listPendingByAdmin] 超级管理员，返回所有待审批申请");
+            List<BoothApply> result = baseMapper.selectList(new LambdaQueryWrapper<BoothApply>()
+                    .eq(BoothApply::getStatus, "待审批"));
+            System.out.println("[listPendingByAdmin] 超级管理员查询结果数量=" + result.size());
+            return result;
+        }
+
+        // 普通管理员：只返回自己集市下的待审批申请
         Market market = marketMapper.selectOne(new LambdaQueryWrapper<Market>()
                 .eq(Market::getAdminId, adminId));
-        if (market == null) return new ArrayList<>();
+        if (market == null) {
+            System.out.println("[listPendingByAdmin] 未找到该管理员管理的集市, adminId=" + adminId);
+            return new ArrayList<>();
+        }
+        System.out.println("[listPendingByAdmin] 找到集市: marketId=" + market.getId() + ", name=" + market.getName());
 
         List<Booth> booths = boothMapper.selectList(new LambdaQueryWrapper<Booth>()
                 .eq(Booth::getMarketId, market.getId()));
-        if (booths.isEmpty()) return new ArrayList<>();
+        if (booths.isEmpty()) {
+            System.out.println("[listPendingByAdmin] 该集市下没有摊位, marketId=" + market.getId());
+            return new ArrayList<>();
+        }
 
         List<Long> boothIds = booths.stream().map(Booth::getId).collect(Collectors.toList());
+        System.out.println("[listPendingByAdmin] 该集市下摊位数量=" + booths.size() + ", boothIds=" + boothIds);
 
-        return baseMapper.selectList(new LambdaQueryWrapper<BoothApply>()
+        List<BoothApply> result = baseMapper.selectList(new LambdaQueryWrapper<BoothApply>()
                 .eq(BoothApply::getStatus, "待审批")
                 .and(w -> w.in(BoothApply::getTargetBoothId, boothIds)
                         .or()
                         .in(BoothApply::getOriginBoothId, boothIds)));
+        System.out.println("[listPendingByAdmin] 查询结果数量=" + result.size());
+        for (BoothApply a : result) {
+            System.out.println("[listPendingByAdmin] 申请: id=" + a.getId() + ", type=" + a.getType() + ", vendorId=" + a.getVendorId() + ", targetBoothId=" + a.getTargetBoothId() + ", originBoothId=" + a.getOriginBoothId() + ", status=" + a.getStatus());
+        }
+        return result;
     }
 
     @Override
@@ -370,6 +405,13 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
     }
 
     private void validateAdminPermission(BoothApply apply, Long adminId) {
+        // 超级管理员：跳过集市归属校验，可审批所有申请
+        User admin = userMapper.selectById(adminId);
+        if (admin != null && admin.getIsSuperAdmin() != null && admin.getIsSuperAdmin() == 1) {
+            System.out.println("[validateAdminPermission] 超级管理员审批，跳过集市归属校验");
+            return;
+        }
+
         Long boothId = apply.getTargetBoothId() != null ? apply.getTargetBoothId() : apply.getOriginBoothId();
         if (boothId == null) {
             throw new RuntimeException("申请信息不完整");
@@ -382,5 +424,32 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
         if (market == null || !market.getAdminId().equals(adminId)) {
             throw new RuntimeException("无权审批该申请，该摊位不属于您管理的集市");
         }
+    }
+
+    /**
+     * 通知摊位所属集市的管理员有新申请
+     */
+    private void notifyAdmin(Booth booth, Long userId, String applyType, Long applyId) {
+        Market market = marketMapper.selectById(booth.getMarketId());
+        if (market == null || market.getAdminId() == null) {
+            return;
+        }
+        User applicant = userMapper.selectById(userId);
+        String applicantName = applicant != null ? applicant.getNickname() : "未知用户";
+        String typeName;
+        switch (applyType) {
+            case "入住": typeName = "入住"; break;
+            case "更换": typeName = "更换"; break;
+            case "归还": typeName = "归还"; break;
+            default: typeName = applyType;
+        }
+        notificationService.createNotification(
+                market.getAdminId(),
+                typeName + "申请",
+                "用户「" + applicantName + "」提交了摊位「" + booth.getTitle() + "」的" + typeName + "申请",
+                applyId
+        );
+        // WebSocket 通知该管理员
+        NotificationEndpoint.sendToUser(market.getAdminId().toString(), "new_notification");
     }
 }
