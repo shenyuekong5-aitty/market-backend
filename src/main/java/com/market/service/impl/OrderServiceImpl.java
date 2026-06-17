@@ -37,6 +37,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     @Autowired
     private MarketMapper marketMapper;
     @Autowired
+    private ReservationMapper reservationMapper;
+    @Autowired
     private NotificationService notificationService;
 
     @Override
@@ -204,6 +206,24 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         order.setStatus("已取消");
         baseMapper.updateById(order);
 
+        // 同步取消关联预定
+        Reservation reservation = reservationMapper.selectOne(
+                new LambdaQueryWrapper<Reservation>()
+                        .eq(Reservation::getOrderId, order.getId())
+                        .eq(Reservation::getStatus, "已确认"));
+        if (reservation != null) {
+            reservation.setStatus("已取消");
+            reservationMapper.updateById(reservation);
+            // 通知预定用户
+            notificationService.createNotification(
+                    reservation.getUserId(),
+                    "预定结果",
+                    "您的预定已被取消（订单已取消）",
+                    reservation.getId()
+            );
+            NotificationEndpoint.sendToUser(reservation.getUserId().toString(), "new_notification");
+        }
+
         // 通知摊主
         notificationService.createNotification(
                 order.getVendorId(),
@@ -351,6 +371,16 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         }
         order.setStatus("已完成");
         baseMapper.updateById(order);
+
+        // 同步更新关联预定的状态为"已完成"
+        Reservation reservation = reservationMapper.selectOne(
+                new LambdaQueryWrapper<Reservation>()
+                        .eq(Reservation::getOrderId, order.getId())
+                        .eq(Reservation::getStatus, "已确认"));
+        if (reservation != null) {
+            reservation.setStatus("已完成");
+            reservationMapper.updateById(reservation);
+        }
 
         // 通知摊主
         notificationService.createNotification(

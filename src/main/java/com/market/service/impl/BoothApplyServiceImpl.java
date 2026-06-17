@@ -322,10 +322,11 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
 
     @Override
     public boolean hasPendingReservationsOrOrders(Long userId) {
+        // 只检查"待确认"的预定，因为"已确认"的预定已有关联订单，由订单状态检查覆盖
         Long pendingReservationCount = reservationMapper.selectCount(
                 new LambdaQueryWrapper<Reservation>()
                         .eq(Reservation::getVendorId, userId)
-                        .in(Reservation::getStatus, "待确认", "已确认")
+                        .eq(Reservation::getStatus, "待确认")
         );
         if (pendingReservationCount > 0) return true;
 
