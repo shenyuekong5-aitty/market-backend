@@ -32,7 +32,6 @@ public class UserController {
         if (principal instanceof User) {
             userId = ((User) principal).getId();
         } else {
-            // 如果你的 UserDetails 实现里存了用户ID，可自行获取
             throw new RuntimeException("无法获取当前用户");
         }
 

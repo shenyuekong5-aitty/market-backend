@@ -28,12 +28,25 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
                 .orderByDesc(Notification::getCreateTime));
     }
 
+    /**
+     * 根据接收者ID，查询所有未读通知，并按创建时间倒序排列
+     * @param receiverId 接收人的用户ID
+     * @return 未读通知列表
+     */
     @Override
     public List<Notification> listUnreadByReceiver(Long receiverId) {
-        return baseMapper.selectList(new LambdaQueryWrapper<Notification>()
-                .eq(Notification::getReceiverId, receiverId)
-                .eq(Notification::getIsRead, 0)
-                .orderByDesc(Notification::getCreateTime));
+        // baseMapper 是 MyBatis-Plus 自动生成的 BaseMapper<Notification> 接口实现
+        // 通过 selectList 方法，传入构建好的查询条件，执行查询
+        return baseMapper.selectList(
+                // 使用 LambdaQueryWrapper 构建查询条件，好处是使用 Lambda 表达式，避免字段名硬编码
+                new LambdaQueryWrapper<Notification>()
+                        // 条件1：receiver_id = 传入的接收者ID
+                        .eq(Notification::getReceiverId, receiverId)
+                        // 条件2：is_read = 0，表示未读（0 未读，1 已读）
+                        .eq(Notification::getIsRead, 0)
+                        // 排序：按照 create_time 字段降序排列，最新的通知排在最前面
+                        .orderByDesc(Notification::getCreateTime)
+        );
     }
 
     @Override
