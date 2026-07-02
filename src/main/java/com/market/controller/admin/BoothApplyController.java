@@ -21,9 +21,7 @@ public class BoothApplyController {
     @GetMapping("/pending")
     public Result<List<BoothApplyDTO>> getPendingApplies() {
         Long adminId = getCurrentAdminId();
-        System.out.println("[BoothApplyController] getPendingApplies: adminId=" + adminId);
         List<BoothApplyDTO> result = boothApplyService.listPendingWithDetailsByAdmin(adminId);
-        System.out.println("[BoothApplyController] getPendingApplies 返回结果数量=" + result.size());
         return Result.success(result);
     }
 

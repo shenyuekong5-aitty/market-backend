@@ -36,25 +36,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
-            if (jwtUtils.validateToken(token)) {
-                Claims claims = jwtUtils.parseToken(token);
-                String username = claims.getSubject();
-                String tokenRole = claims.get("role", String.class);   // 解析角色
+            if (!jwtUtils.validateToken(token)) {
+                // 直接返回 401，不继续走过滤器链
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"code\":401,\"message\":\"token已过期或无效，请重新登录\"}");
+                return;   // 关键：立即结束，不执行 filterChain.doFilter
+            }
 
-                User user = userService.getByUsername(username);
-                if (user != null && user.getStatus() == 1) {
-                    // 检查角色是否变更
-                    if (!user.getRole().equals(tokenRole)) {
-                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                        response.setContentType("application/json;charset=UTF-8");
-                        response.getWriter().write("{\"code\":401,\"message\":\"角色已变更，请重新登录\"}");
-                        return;
-                    }
+            Claims claims = jwtUtils.parseToken(token);
+            String username = claims.getSubject();
+            String tokenRole = claims.get("role", String.class);
 
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(user, null, new ArrayList<>());
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+            User user = userService.getByUsername(username);
+            if (user != null && user.getStatus() == 1) {
+                if (!user.getRole().equals(tokenRole)) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"code\":401,\"message\":\"角色已变更，请重新登录\"}");
+                    return;
                 }
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(user, null, new ArrayList<>());
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }
         filterChain.doFilter(request, response);
