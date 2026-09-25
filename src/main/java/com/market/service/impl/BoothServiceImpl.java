@@ -2,6 +2,7 @@ package com.market.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.market.dto.BoothListDTO;
 import com.market.entity.Booth;
 import com.market.entity.BoothApply;
 import com.market.entity.Market;
@@ -24,14 +25,16 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
     private BoothApplyMapper boothApplyMapper;
 
     @Override
-    public List<Booth> listByMarketId(Long marketId, Long adminId) {
+    public BoothListDTO listByMarketId(Long marketId, Long adminId) {
         // 校验该集市是否属于当前管理员
         Market market = marketMapper.selectById(marketId);
         if (market == null || !market.getAdminId().equals(adminId)) {
             throw new RuntimeException("无权查看该集市的摊位");
         }
-        return baseMapper.selectList(new LambdaQueryWrapper<Booth>()
+        List<Booth> booths = baseMapper.selectList(new LambdaQueryWrapper<Booth>()
                 .eq(Booth::getMarketId, marketId));
+        long total = booths.size();
+        return new BoothListDTO(total, booths);
     }
 
     @Override

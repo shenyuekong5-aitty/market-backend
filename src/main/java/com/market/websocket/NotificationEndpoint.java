@@ -1,5 +1,10 @@
 package com.market.websocket;
 
+import com.market.common.JwtUtils;
+import com.market.config.SpringContextHolder;
+import com.market.entity.User;
+import com.market.service.UserService;
+import io.jsonwebtoken.Claims;
 import jakarta.websocket.*;
 import jakarta.websocket.server.PathParam;
 import jakarta.websocket.server.ServerEndpoint;
@@ -17,8 +22,34 @@ public class NotificationEndpoint {
 
     @OnOpen
     public void onOpen(Session session, @PathParam("userId") String userId) {
+        String token = session.getRequestParameterMap().getOrDefault("token", java.util.Collections.emptyList())
+                .stream().findFirst().orElse(null);
+        if (!isAuthorized(userId, token)) {
+            closeUnauthorized(session);
+            return;
+        }
         ONLINE_SESSIONS.put(userId, session);
         System.out.println("WebSocket 连接建立：userId=" + userId);
+    }
+
+    private boolean isAuthorized(String userId, String token) {
+        try {
+            JwtUtils jwtUtils = SpringContextHolder.getBean(JwtUtils.class);
+            UserService userService = SpringContextHolder.getBean(UserService.class);
+            if (token == null || !jwtUtils.validateToken(token)) return false;
+            Claims claims = jwtUtils.parseToken(token);
+            User user = userService.getByUsername(claims.getSubject());
+            return user != null && user.getStatus() == 1 && String.valueOf(user.getId()).equals(userId);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void closeUnauthorized(Session session) {
+        try {
+            session.close(new CloseReason(CloseReason.CloseCodes.VIOLATED_POLICY, "未授权的 WebSocket 连接"));
+        } catch (IOException ignored) {
+        }
     }
 
     @OnMessage

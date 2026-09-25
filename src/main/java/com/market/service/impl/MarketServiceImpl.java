@@ -28,6 +28,9 @@ public class MarketServiceImpl extends ServiceImpl<MarketMapper, Market> impleme
         }
         market.setAdminId(adminId);
         market.setStatus(1); // 默认启用
+        if (market.getMaxBooths() == null) {
+            market.setMaxBooths(0); // 默认0表示不限制
+        }
         baseMapper.insert(market);
         return market;
     }
@@ -39,9 +42,10 @@ public class MarketServiceImpl extends ServiceImpl<MarketMapper, Market> impleme
         if (existing == null || !existing.getId().equals(market.getId())) {
             throw new RuntimeException("无权修改该集市");
         }
-        // 只允许修改名称和位置
+        // 只允许修改名称、位置和最大摊位数量
         existing.setName(market.getName());
         existing.setLocation(market.getLocation());
+        existing.setMaxBooths(market.getMaxBooths());
         baseMapper.updateById(existing);
         return existing;
     }

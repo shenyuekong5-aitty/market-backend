@@ -41,36 +41,6 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
     private MarketMapper marketMapper;
 
     @Override
-    public List<BoothApply> listPending() {
-        return baseMapper.selectList(new LambdaQueryWrapper<BoothApply>()
-                .eq(BoothApply::getStatus, "待审批"));
-    }
-
-    @Override
-    public List<BoothApplyDTO> listPendingWithDetails() {
-        List<BoothApply> applies = baseMapper.selectList(
-                new LambdaQueryWrapper<BoothApply>().eq(BoothApply::getStatus, "待审批")
-        );
-        return applies.stream().map(apply -> {
-            BoothApplyDTO dto = new BoothApplyDTO();
-            dto.setId(apply.getId());
-            dto.setType(apply.getType());
-            dto.setVendorId(apply.getVendorId());
-            dto.setTargetBoothId(apply.getTargetBoothId());
-            dto.setStatus(apply.getStatus());
-            dto.setApplyTime(apply.getApplyTime());
-
-            User vendor = userMapper.selectById(apply.getVendorId());
-            dto.setVendorName(vendor != null ? vendor.getNickname() : "未知用户");
-
-            Booth booth = boothMapper.selectById(apply.getTargetBoothId());
-            dto.setTargetBoothTitle(booth != null ? booth.getTitle() : "未知摊位");
-
-            return dto;
-        }).collect(Collectors.toList());
-    }
-
-    @Override
     @Transactional
     public void approve(Long applyId, Long adminId) {
         BoothApply apply = baseMapper.selectById(applyId);

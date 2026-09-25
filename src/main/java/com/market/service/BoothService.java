@@ -1,13 +1,14 @@
 package com.market.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.market.dto.BoothListDTO;
 import com.market.entity.Booth;
 
 import java.util.List;
 
 public interface BoothService extends IService<Booth> {
     //摊位相关
-    List<Booth> listByMarketId(Long marketId, Long adminId);
+    BoothListDTO listByMarketId(Long marketId, Long adminId);
     Booth createBooth(Booth booth, Long adminId);
     Booth updateBooth(Booth booth, Long adminId);
     void deleteBooth(Long boothId, Long adminId);

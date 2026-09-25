@@ -1,6 +1,7 @@
 package com.market.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -11,6 +12,7 @@ public class User {
     private Long id;
     private String phone;
     private String username;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
     private String nickname;
     /** 头像文件路径 */

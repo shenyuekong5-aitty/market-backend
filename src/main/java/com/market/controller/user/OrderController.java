@@ -36,6 +36,11 @@ public class OrderController {
     // 订单明细
     @GetMapping("/{orderId}/items")
     public Result<List<OrderItem>> getItems(@PathVariable Long orderId) {
+        Long userId = getCurrentUserId();
+        Order order = orderService.getById(orderId);
+        if (order == null || !userId.equals(order.getCustomerId())) {
+            throw new RuntimeException("订单不存在或无权查看");
+        }
         return Result.success(orderService.getOrderItems(orderId));
     }
 

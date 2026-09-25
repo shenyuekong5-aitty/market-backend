@@ -1,14 +1,13 @@
 package com.market.controller.admin;
 
 import com.market.common.Result;
+import com.market.dto.BoothListDTO;
 import com.market.entity.Booth;
 import com.market.entity.User;
 import com.market.service.BoothService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/booths")
@@ -19,9 +18,9 @@ public class BoothController {
 
     // 获取指定集市下的摊位列表（只允许查看自己管理的集市）
     @GetMapping
-    public Result<List<Booth>> list(@RequestParam Long marketId) {
+    public Result<BoothListDTO> list(@RequestParam Long marketId) {
         Long adminId = getCurrentAdminId();
-        return Result.success(boothService.listByMarketId(marketId, adminId));  // 修改为带权限校验的方法
+        return Result.success(boothService.listByMarketId(marketId, adminId));
     }
 
     // 新增摊位

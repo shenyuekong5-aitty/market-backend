@@ -13,6 +13,7 @@ public class Market {
     private String location;
     private Long adminId;
     private Integer status;   // 1启用 0停用
+    private Integer maxBooths; // 最大摊位数量，0表示不限制
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
@@ -54,6 +55,14 @@ public class Market {
 
     public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public Integer getMaxBooths() {
+        return maxBooths;
+    }
+
+    public void setMaxBooths(Integer maxBooths) {
+        this.maxBooths = maxBooths;
     }
 
     public LocalDateTime getCreateTime() {

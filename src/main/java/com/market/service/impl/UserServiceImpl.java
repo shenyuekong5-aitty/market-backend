@@ -86,7 +86,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public String login(String username, String password, String role) {
         // 1. 查询用户
         User user = baseMapper.selectOne(new LambdaQueryWrapper<User>()
-                .eq(User::getUsername, username));
+                .and(wrapper -> wrapper
+                        .eq(User::getUsername, username)
+                        .or()
+                        .eq(User::getPhone, username)));
         if (user == null) {
             throw new RuntimeException("账号或密码错误");
         }

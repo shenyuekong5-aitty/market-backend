@@ -25,14 +25,6 @@ public class BoothApplyController {
         return Result.success(result);
     }
 
-    // 【调试接口】获取所有待审批申请（不过滤管理员），用于对比排查
-    @GetMapping("/pending-all")
-    public Result<List<BoothApplyDTO>> getPendingAll() {
-        List<BoothApplyDTO> result = boothApplyService.listPendingWithDetails();
-        System.out.println("[BoothApplyController] getPendingAll 返回结果数量=" + result.size());
-        return Result.success(result);
-    }
-
     // 审批通过
     @PutMapping("/{id}/approve")
     public Result<String> approve(@PathVariable Long id) {

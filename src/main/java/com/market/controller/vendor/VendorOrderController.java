@@ -24,9 +24,14 @@ public class VendorOrderController {
         return Result.success(orderService.listVendorOrders(vendorId));
     }
 
-    // 获取订单明细（复用通用接口，也可以直接调用 orderService.getOrderItems）
+    // 获取当前摊主订单明细
     @GetMapping("/{orderId}/items")
     public Result<List<OrderItem>> getItems(@PathVariable Long orderId) {
+        Long vendorId = getCurrentVendorId();
+        Order order = orderService.getById(orderId);
+        if (order == null || !vendorId.equals(order.getVendorId())) {
+            throw new RuntimeException("订单不存在或无权查看");
+        }
         return Result.success(orderService.getOrderItems(orderId));
     }
 
