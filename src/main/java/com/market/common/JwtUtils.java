@@ -38,7 +38,7 @@ public class JwtUtils {
     /**
      * 生成 JWT Token
      * @param username 用户名（可以是账号或手机号等标识）
-     * @param role     用户角色（如 "ADMIN"、"VENDOR"、"USER"），用于后端接口权限校验
+     * @param role     用户角色（super_admin、market_admin、vendor、user），用于后端接口权限校验
      * @return 生成的 JWT 字符串，客户端每次请求需携带在 Header 中
      */
     public String generateToken(String username, String role) {

@@ -87,8 +87,13 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         if ("all".equals(role)) {
             // 发送给所有用户
             users = userMapper.selectList(new LambdaQueryWrapper<User>().eq(User::getStatus, 1));
+        } else if ("admin".equals(role)) {
+            // “全部管理员”包括新旧角色，兼容尚未迁移的账号。
+            users = userMapper.selectList(new LambdaQueryWrapper<User>()
+                    .in(User::getRole, "admin", "super_admin", "market_admin")
+                    .eq(User::getStatus, 1));
         } else {
-            // 发送给指定角色（admin / vendor / user）
+            // 发送给指定角色（super_admin / market_admin / vendor / user）
             users = userMapper.selectList(new LambdaQueryWrapper<User>()
                     .eq(User::getRole, role)
                     .eq(User::getStatus, 1));

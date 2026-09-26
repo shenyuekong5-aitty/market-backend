@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 // ===== 3. 项目内部模块 =====
 import com.market.common.JwtUtils;
+import com.market.common.UserRole;
 import com.market.dto.SecurityCheckResult;
 import com.market.entity.Booth;
 import com.market.entity.BoothApply;
@@ -100,7 +101,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 3. 校验角色
-        if (!user.getRole().equals(role)) {
+        if (!UserRole.effectiveRole(user).equals(role)) {
             throw new RuntimeException("角色不匹配");
         }
 
@@ -110,7 +111,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 5. 生成JWT
-        return jwtUtils.generateToken(user.getUsername(), user.getRole());
+        return jwtUtils.generateToken(user.getUsername(), UserRole.effectiveRole(user));
     }
 
     @Override
@@ -164,9 +165,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         Map<String, Object> roleItem = new HashMap<>();
         roleItem.put("id", "role");
         roleItem.put("label", "当前角色");
-        String role = user.getRole();
-        if ("admin".equals(role)) {
-            roleItem.put("result", "集市管理员（最高权限）");
+        String role = UserRole.effectiveRole(user);
+        if (UserRole.SUPER_ADMIN.equals(role)) {
+            roleItem.put("result", "超级管理员（平台管理权限）");
+        } else if (UserRole.MARKET_ADMIN.equals(role)) {
+            roleItem.put("result", "集市管理员（所属集市管理权限）");
         } else if ("vendor".equals(role)) {
             roleItem.put("result", "小贩（摊位经营权限）");
         } else {
@@ -402,13 +405,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // followMapper.delete(new LambdaQueryWrapper<Follow>().eq(Follow::getUserId, userId));
     }
 
-    //创建超级管理员
+    // 超级管理员创建集市管理员
     @Override
     @Transactional
     public void createAdmin(Long superAdminId, User newAdmin) {
         // 检查操作者是否为超级管理员
         User superAdmin = baseMapper.selectById(superAdminId);
-        if (superAdmin == null || !"admin".equals(superAdmin.getRole()) || !Integer.valueOf(1).equals(superAdmin.getIsSuperAdmin())) {
+        if (!UserRole.isSuperAdmin(superAdmin)) {
             throw new RuntimeException("无权创建管理员账号");
         }
         // 检查账号是否已存在
@@ -423,7 +426,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
         // 设置管理员属性
         newAdmin.setPassword(passwordEncoder.encode(newAdmin.getPassword()));
-        newAdmin.setRole("admin");
+        newAdmin.setRole(UserRole.MARKET_ADMIN);
         newAdmin.setIsSuperAdmin(0);   // 创建的是普通管理员
         newAdmin.setStatus(1);
         baseMapper.insert(newAdmin);
@@ -433,12 +436,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public List<User> listAllAdmins(Long superAdminId) {
         // 校验是否为超级管理员
         User superAdmin = baseMapper.selectById(superAdminId);
-        if (superAdmin == null || !Integer.valueOf(1).equals(superAdmin.getIsSuperAdmin())) {
+        if (!UserRole.isSuperAdmin(superAdmin)) {
             throw new RuntimeException("无权查看管理员列表");
         }
-        // 返回所有 role='admin' 的用户
+        // 包含迁移前的 admin 数据，避免管理列表漏人。
         return baseMapper.selectList(new LambdaQueryWrapper<User>()
-                .eq(User::getRole, "admin")
+                .in(User::getRole, "admin", UserRole.SUPER_ADMIN, UserRole.MARKET_ADMIN)
                 .orderByAsc(User::getCreateTime));
     }
 
@@ -446,11 +449,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Transactional
     public void toggleAdminStatus(Long superAdminId, Long adminId) {
         User superAdmin = baseMapper.selectById(superAdminId);
-        if (superAdmin == null || !Integer.valueOf(1).equals(superAdmin.getIsSuperAdmin())) {
+        if (!UserRole.isSuperAdmin(superAdmin)) {
             throw new RuntimeException("无权操作");
         }
         User admin = baseMapper.selectById(adminId);
-        if (admin == null || !"admin".equals(admin.getRole())) {
+        if (!UserRole.isAdmin(admin)) {
             throw new RuntimeException("管理员不存在");
         }
         // 不能停用自己

@@ -47,6 +47,8 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, accessDeniedException) -> writeJson(response, 403, "没有权限访问")))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // WebSocket 浏览器握手无法设置 Authorization 头；端点的 @OnOpen 会校验查询参数中的 token 与 userId。
+                        .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/register",
@@ -56,7 +58,11 @@ public class SecurityConfig {
                                 "/uploads/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/vendor/markets", "/api/user/booths/**", "/api/user/products").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/manage/**", "/api/admin/notifications/send").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/admin/market", "/api/admin/market/**",
+                                "/api/admin/booths", "/api/admin/booths/**",
+                                "/api/admin/income-stats", "/api/admin/income-stats/**").hasRole("MARKET_ADMIN")
+                        .requestMatchers("/api/admin/**").hasAnyRole("SUPER_ADMIN", "MARKET_ADMIN")
                         .requestMatchers(
                                 "/api/vendor/products/**",
                                 "/api/vendor/booth/**",

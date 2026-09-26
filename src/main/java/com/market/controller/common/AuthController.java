@@ -1,6 +1,7 @@
 package com.market.controller.common;
 
 import com.market.common.Result;
+import com.market.common.UserRole;
 import com.market.entity.User;
 import com.market.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +34,9 @@ public class AuthController {
     // 获取当前登录用户信息
     @GetMapping("/currentUser")
     public Result<User> currentUser() {
-        return Result.success(userService.getCurrentUser());
+        User user = userService.getCurrentUser();
+        user.setRole(UserRole.effectiveRole(user));
+        return Result.success(user);
     }
 
     // 修改密码--登录状态，根据旧密码

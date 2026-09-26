@@ -314,7 +314,7 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
 
         // 超级管理员：返回所有待审批申请，不受集市限制
         User admin = userMapper.selectById(adminId);
-        if (admin != null && admin.getIsSuperAdmin() != null && admin.getIsSuperAdmin() == 1) {
+        if (com.market.common.UserRole.isSuperAdmin(admin)) {
             System.out.println("[listPendingByAdmin] 超级管理员，返回所有待审批申请");
             List<BoothApply> result = baseMapper.selectList(new LambdaQueryWrapper<BoothApply>()
                     .eq(BoothApply::getStatus, "待审批"));
@@ -378,7 +378,7 @@ public class BoothApplyServiceImpl extends ServiceImpl<BoothApplyMapper, BoothAp
     private void validateAdminPermission(BoothApply apply, Long adminId) {
         // 超级管理员：跳过集市归属校验，可审批所有申请
         User admin = userMapper.selectById(adminId);
-        if (admin != null && admin.getIsSuperAdmin() != null && admin.getIsSuperAdmin() == 1) {
+        if (com.market.common.UserRole.isSuperAdmin(admin)) {
             System.out.println("[validateAdminPermission] 超级管理员审批，跳过集市归属校验");
             return;
         }

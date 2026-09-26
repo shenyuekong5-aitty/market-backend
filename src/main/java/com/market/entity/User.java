@@ -18,7 +18,7 @@ public class User {
     /** 头像文件路径 */
     private String avatar;
     private Integer gender;
-    private String role;          // admin / vendor / user
+    private String role;          // super_admin / market_admin / vendor / user
     private Integer isSuperAdmin;
     private Integer status;       // 1 正常 / 0 注销
     private LocalDateTime createTime;

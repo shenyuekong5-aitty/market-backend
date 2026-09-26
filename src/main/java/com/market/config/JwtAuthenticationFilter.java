@@ -1,6 +1,7 @@
 package com.market.config;
 
 import com.market.common.JwtUtils;
+import com.market.common.UserRole;
 import com.market.entity.User;
 import com.market.service.UserService;
 import io.jsonwebtoken.Claims;
@@ -51,7 +52,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             User user = userService.getByUsername(username);
             if (user != null && user.getStatus() == 1) {
-                if (!user.getRole().equals(tokenRole)) {
+                String currentRole = UserRole.effectiveRole(user);
+                if (!currentRole.equals(tokenRole)) {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json;charset=UTF-8");
                     response.getWriter().write("{\"code\":401,\"message\":\"角色已变更，请重新登录\"}");
@@ -61,7 +63,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(
                                 user,
                                 null,
-                                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().toUpperCase()))
+                                List.of(new SimpleGrantedAuthority("ROLE_" + currentRole.toUpperCase()))
                         );
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }

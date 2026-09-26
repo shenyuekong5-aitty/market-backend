@@ -1,6 +1,7 @@
 package com.market.websocket;
 
 import com.market.common.JwtUtils;
+import com.market.common.UserRole;
 import com.market.config.SpringContextHolder;
 import com.market.entity.User;
 import com.market.service.UserService;
@@ -39,7 +40,9 @@ public class NotificationEndpoint {
             if (token == null || !jwtUtils.validateToken(token)) return false;
             Claims claims = jwtUtils.parseToken(token);
             User user = userService.getByUsername(claims.getSubject());
-            return user != null && user.getStatus() == 1 && String.valueOf(user.getId()).equals(userId);
+            return user != null && user.getStatus() == 1
+                    && String.valueOf(user.getId()).equals(userId)
+                    && UserRole.effectiveRole(user).equals(claims.get("role", String.class));
         } catch (Exception e) {
             return false;
         }

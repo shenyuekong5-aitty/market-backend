@@ -13,7 +13,7 @@ public interface NotificationService extends IService<Notification> {
 
     /**
      * 管理员发送通知（支持按角色或全体发送）
-     * @param role 目标角色：all / admin / vendor / user
+     * @param role 目标角色：all / admin（全部管理员）/ super_admin / market_admin / vendor / user
      * @param content 通知内容
      */
     void sendByRole(String role, String content);
