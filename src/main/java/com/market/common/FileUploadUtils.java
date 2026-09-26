@@ -39,9 +39,9 @@ public class FileUploadUtils {
         String dateDir = LocalDate.now().toString();
 
         // 3. 构建文件保存的完整目录路径
-        // 配置中的 uploadPath 通常是根路径，如 "./uploads"
+        // 配置中的 uploadPath 是磁盘存储目录（默认 "uploads"）
         // avatarPath 是头像专用子目录，如 "avatar"
-        // 最终路径示例：./uploads/avatar/2024-06-06/
+        // 默认路径示例：uploads/avatar/2024-06-06/
         String dirPath = fileUploadConfig.getUploadPath() + File.separator
                 + fileUploadConfig.getAvatarPath() + File.separator + dateDir;
         File dir = new File(dirPath);
@@ -66,7 +66,7 @@ public class FileUploadUtils {
         // 6. 拼接返回给前端的相对路径
         // staticUrl 通常配置为 "/uploads"（与Spring资源映射一致）
         // 路径组成：/uploads/avatar/2024-06-06/uuid.png
-        // 注意：实际物理路径的 "./uploads" 前缀被去掉，替换为可URL访问的静态路径
+        // 注意：磁盘存储目录与浏览器访问路径是两个不同的概念
         return fileUploadConfig.getStaticUrl() + "/" + fileUploadConfig.getAvatarPath()
                 + "/" + dateDir + "/" + filename;
     }
