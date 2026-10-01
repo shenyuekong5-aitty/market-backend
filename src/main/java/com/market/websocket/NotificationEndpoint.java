@@ -10,6 +10,8 @@ import jakarta.websocket.*;
 import jakarta.websocket.server.PathParam;
 import jakarta.websocket.server.ServerEndpoint;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class NotificationEndpoint {
 
+    private static final Logger log = LoggerFactory.getLogger(NotificationEndpoint.class);
     private static final Map<String, Session> ONLINE_SESSIONS = new ConcurrentHashMap<>();
 
     @OnOpen
@@ -30,7 +33,7 @@ public class NotificationEndpoint {
             return;
         }
         ONLINE_SESSIONS.put(userId, session);
-        System.out.println("WebSocket 连接建立：userId=" + userId);
+        log.debug("WebSocket 连接建立：userId={}", userId);
     }
 
     private boolean isAuthorized(String userId, String token) {
@@ -62,13 +65,13 @@ public class NotificationEndpoint {
 
     @OnClose
     public void onClose(Session session, @PathParam("userId") String userId) {
-        ONLINE_SESSIONS.remove(userId);
-        System.out.println("WebSocket 连接关闭：userId=" + userId);
+        ONLINE_SESSIONS.remove(userId, session);
+        log.debug("WebSocket 连接关闭：userId={}", userId);
     }
 
     @OnError
     public void onError(Session session, Throwable error) {
-        System.err.println("WebSocket 错误：" + error.getMessage());
+        log.warn("WebSocket 错误：{}", error.getMessage());
     }
 
     public static void sendToUser(String userId, String message) {
@@ -77,7 +80,7 @@ public class NotificationEndpoint {
             try {
                 session.getBasicRemote().sendText(message);
             } catch (IOException e) {
-                e.printStackTrace();
+                log.warn("WebSocket 消息发送失败：userId={}", userId, e);
             }
         }
     }
@@ -88,7 +91,7 @@ public class NotificationEndpoint {
                 try {
                     session.getBasicRemote().sendText(message);
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    log.warn("WebSocket 广播发送失败：userId={}", userId, e);
                 }
             }
         });

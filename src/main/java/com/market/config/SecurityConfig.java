@@ -53,6 +53,7 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/register",
                                 "/api/auth/check-phone",
+                                "/api/auth/reset-password",
                                 "/api/sms/send",
                                 "/api/sms/send-reset",
                                 "/uploads/**"

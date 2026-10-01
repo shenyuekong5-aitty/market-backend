@@ -4,6 +4,8 @@ import com.market.common.Result;
 import com.market.service.SmsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.concurrent.TimeUnit;
@@ -11,6 +13,8 @@ import java.util.concurrent.TimeUnit;
 @RestController
 @RequestMapping("/api/sms")
 public class SmsController {
+
+    private static final Logger log = LoggerFactory.getLogger(SmsController.class);
 
     @Autowired
     private StringRedisTemplate redisTemplate;
@@ -23,15 +27,7 @@ public class SmsController {
      */
     @PostMapping("/send")
     public Result<String> sendCode(@RequestParam String phone) {
-        try {
-            String code = smsService.sendVerifyCode(phone);
-            redisTemplate.opsForValue().set("sms:register:" + phone, code, 5, TimeUnit.MINUTES);
-            System.out.println("验证码：" + code);
-            return Result.success("验证码已发送");
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Result.error("短信发送失败：" + e.getMessage());
-        }
+        return sendAndStoreCode(phone, "sms:register:");
     }
 
     /**
@@ -39,15 +35,7 @@ public class SmsController {
      */
     @PostMapping("/send-change-phone")
     public Result<String> sendChangePhoneCode(@RequestParam String phone) {
-        try {
-            String code = smsService.sendVerifyCode(phone);
-            redisTemplate.opsForValue().set("sms:change-phone:" + phone, code, 5, TimeUnit.MINUTES);
-            System.out.println("换绑手机验证码：" + code);
-            return Result.success("验证码已发送");
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Result.error("短信发送失败：" + e.getMessage());
-        }
+        return sendAndStoreCode(phone, "sms:change-phone:");
     }
 
     /**
@@ -55,14 +43,17 @@ public class SmsController {
      */
     @PostMapping("/send-reset")
     public Result<String> sendResetCode(@RequestParam String phone) {
+        return sendAndStoreCode(phone, "sms:reset-password:");
+    }
+
+    private Result<String> sendAndStoreCode(String phone, String redisPrefix) {
         try {
             String code = smsService.sendVerifyCode(phone);
-            redisTemplate.opsForValue().set("sms:reset-password:" + phone, code, 5, TimeUnit.MINUTES);
-            System.out.println("重置密码验证码：" + code);
+            redisTemplate.opsForValue().set(redisPrefix + phone, code, 5, TimeUnit.MINUTES);
             return Result.success("验证码已发送");
         } catch (Exception e) {
-            e.printStackTrace();
-            return Result.error("短信发送失败：" + e.getMessage());
+            log.warn("短信验证码发送或保存失败：type={}, error={}", redisPrefix, e.getClass().getSimpleName());
+            return Result.error("短信发送失败，请稍后重试");
         }
     }
 }
