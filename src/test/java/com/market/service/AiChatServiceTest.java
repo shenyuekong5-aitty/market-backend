@@ -30,6 +30,10 @@ class AiChatServiceTest {
         assertEquals("change", knowledge.search("我想更换摊位", 1).get(0).id());
         assertEquals("payment", knowledge.search("支付订单怎么操作？", 1).get(0).id());
         assertEquals("browse-goods", knowledge.search("有那些商品", 1).get(0).id());
+        assertEquals("greeting", knowledge.search("hi", 1).get(0).id());
+        assertEquals("greeting", knowledge.search("你好！", 1).get(0).id());
+        assertEquals("help", knowledge.search("你能做什么？", 1).get(0).id());
+        assertTrue(knowledge.search("shipping", 1).isEmpty());
         assertTrue(knowledge.search("今天天气怎么样", 1).isEmpty());
         assertFalse(knowledge.suggestions().isEmpty());
         assertTrue(AiCatalogService.isCatalogQuestion("有那些商品"));
@@ -47,6 +51,9 @@ class AiChatServiceTest {
         assertEquals(first.sessionId(), service.chat(1L, "如何预订商品？", first.sessionId()).sessionId());
         assertNotEquals(first.sessionId(), service.chat(2L, "如何申请摊位？", first.sessionId()).sessionId());
         assertEquals("unknown", service.chat(1L, "今天天气怎么样", null).source());
+        var greeting = service.chat(1L, "你好", null);
+        assertEquals("knowledge", greeting.source());
+        assertTrue(greeting.answer().contains("智慧集市客服"));
     }
 
     @Test

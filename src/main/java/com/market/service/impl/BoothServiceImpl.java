@@ -80,8 +80,8 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
         if (market == null || !market.getAdminId().equals(adminId)) {
             throw new RuntimeException("无权删除该摊位");
         }
-        if (!"空闲".equals(booth.getStatus())) {
-            throw new RuntimeException("只有空闲状态的摊位才能删除");
+        if (!"停用".equals(booth.getStatus())) {
+            throw new RuntimeException("请先停用摊位，再进行删除");
         }
         baseMapper.deleteById(boothId);
     }
@@ -95,7 +95,7 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
         if (market == null || !market.getAdminId().equals(adminId)) {
             throw new RuntimeException("无权操作该摊位");
         }
-        // 如果当前是停用，则恢复为空闲；如果是空闲或已占用，则可以停用（但已占用不能停用？这里简单处理为停用）
+        // 已停用可恢复为空闲；只有空闲摊位可以停用，已占用摊位必须先结束占用。
         if ("停用".equals(booth.getStatus())) {
             booth.setStatus("空闲");
         } else {

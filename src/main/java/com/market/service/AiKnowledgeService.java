@@ -42,11 +42,18 @@ public class AiKnowledgeService {
         int best = 0;
         for (String keyword : entry.keywords()) {
             String term = normalize(keyword);
+            // Short conversational intents must match the whole input; e.g. "hi" must not match "shipping".
+            if (isConversational(entry) && !query.equals(term)) continue;
             if (!term.isEmpty() && query.contains(term)) {
                 best = Math.max(best, term.length() * 2 + (query.equals(term) ? 20 : 0));
             }
         }
         return best;
+    }
+
+    private boolean isConversational(Entry entry) {
+        return entry.id().equals("greeting") || entry.id().equals("help")
+                || entry.id().equals("thanks");
     }
 
     private String normalize(String value) {

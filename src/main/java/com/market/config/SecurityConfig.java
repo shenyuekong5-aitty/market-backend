@@ -57,7 +57,7 @@ public class SecurityConfig {
                                 "/api/sms/send-reset",
                                 "/uploads/**"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/vendor/markets", "/api/user/booths/**", "/api/user/products").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/public/products", "/api/vendor/markets", "/api/user/booths/**", "/api/user/products").permitAll()
                         .requestMatchers("/api/admin/manage/**", "/api/admin/notifications/send").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/admin/market", "/api/admin/market/**",
                                 "/api/admin/booths", "/api/admin/booths/**",
