@@ -1,6 +1,7 @@
 package com.market.controller.admin;
 
 import com.market.common.Result;
+import com.market.common.AdminOperation;
 import com.market.dto.BoothListDTO;
 import com.market.entity.Booth;
 import com.market.entity.User;
@@ -25,6 +26,7 @@ public class BoothController {
 
     // 新增摊位
     @PostMapping
+    @AdminOperation("新增摊位")
     public Result<Booth> create(@RequestBody Booth booth) {
         Long adminId = getCurrentAdminId();
         return Result.success(boothService.createBooth(booth, adminId));
@@ -32,6 +34,7 @@ public class BoothController {
 
     // 更新摊位
     @PutMapping("/{id}")
+    @AdminOperation("更新摊位资料")
     public Result<Booth> update(@PathVariable Long id, @RequestBody Booth booth) {
         booth.setId(id);
         Long adminId = getCurrentAdminId();
@@ -40,6 +43,7 @@ public class BoothController {
 
     // 删除摊位
     @DeleteMapping("/{id}")
+    @AdminOperation("删除停用摊位")
     public Result<String> delete(@PathVariable Long id) {
         Long adminId = getCurrentAdminId();
         boothService.deleteBooth(id, adminId);
@@ -48,6 +52,7 @@ public class BoothController {
 
     // 切换摊位状态
     @PutMapping("/{id}/toggle-status")
+    @AdminOperation("切换摊位状态")
     public Result<String> toggleStatus(@PathVariable Long id) {
         Long adminId = getCurrentAdminId();
         boothService.toggleBoothStatus(id, adminId);

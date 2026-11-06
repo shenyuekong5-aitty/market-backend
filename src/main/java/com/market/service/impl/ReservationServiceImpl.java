@@ -7,7 +7,6 @@ import com.market.entity.*;
 import com.market.mapper.*;
 import com.market.service.NotificationService;
 import com.market.service.ReservationService;
-import com.market.websocket.NotificationEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +25,8 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
     @Autowired
     private BoothMapper boothMapper;
     @Autowired
+    private MarketMapper marketMapper;
+    @Autowired
     private OrderMapper orderMapper;
     @Autowired
     private OrderItemMapper orderItemMapper;
@@ -37,8 +38,13 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
     @Override
     @Transactional
     public void submitReservation(Long userId, Long productId, LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null || !startTime.isBefore(endTime)) {
+            throw new IllegalArgumentException("请选择有效的预订时间段");
+        }
+        // 同一商品的时间段检查必须串行，避免两人同时通过冲突检查。
+        if (productMapper.lockId(productId) == null) throw new RuntimeException("商品不存在");
         Product product = productMapper.selectById(productId);
-        if (product == null || product.getCanReserve() != 1 || !"上架".equals(product.getSaleStatus())) {
+        if (product == null || !Integer.valueOf(1).equals(product.getCanReserve()) || !"上架".equals(product.getSaleStatus())) {
             throw new RuntimeException("商品不支持预定或已下架");
         }
         // 检查时间段冲突
@@ -55,6 +61,13 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         }
 
         Booth booth = boothMapper.selectById(product.getBoothId());
+        if (booth == null || !"已占用".equals(booth.getStatus()) || booth.getVendorId() == null) {
+            throw new RuntimeException("摊位当前不可预订");
+        }
+        Market market = marketMapper.selectById(booth.getMarketId());
+        if (market == null || !Integer.valueOf(1).equals(market.getStatus())) {
+            throw new RuntimeException("集市当前未开放");
+        }
 
         Reservation reservation = new Reservation();
         reservation.setProductId(productId);
@@ -72,14 +85,14 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                 "用户 " + getUserName(userId) + " 预定了您的商品「" + product.getName() + "」，请及时处理",
                 reservation.getId()
         );
-        NotificationEndpoint.sendToUser(reservation.getVendorId().toString(), "new_notification");
     }
 
     @Override
     public List<ReservationDTO> listUserReservations(Long userId) {
         List<Reservation> list = baseMapper.selectList(new LambdaQueryWrapper<Reservation>()
                 .eq(Reservation::getUserId, userId)
-                .orderByDesc(Reservation::getCreateTime));
+                .orderByDesc(Reservation::getCreateTime)
+                .orderByDesc(Reservation::getId));
         return list.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
@@ -87,7 +100,8 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
     public List<ReservationDTO> listVendorReservations(Long vendorId) {
         List<Reservation> list = baseMapper.selectList(new LambdaQueryWrapper<Reservation>()
                 .eq(Reservation::getVendorId, vendorId)
-                .orderByDesc(Reservation::getCreateTime));
+                .orderByDesc(Reservation::getCreateTime)
+                .orderByDesc(Reservation::getId));
         return list.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
@@ -101,14 +115,27 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         if (!reservation.getVendorId().equals(vendorId)) {
             throw new RuntimeException("无权操作");
         }
+        if (baseMapper.transitionIfPending(reservationId, "处理中") != 1) {
+            throw new RuntimeException("预订已被处理，请刷新后重试");
+        }
 
         Product product = productMapper.selectById(reservation.getProductId());
-        if (product.getStock() <= 0) {
-            throw new RuntimeException("库存不足");
+        if (product == null || product.getCanReserve() == null || product.getCanReserve() != 1) {
+            throw new RuntimeException("商品已不可预订");
         }
 
         // 生成订单
         Booth booth = boothMapper.selectById(product.getBoothId());
+        if (booth == null || !"已占用".equals(booth.getStatus()) || !vendorId.equals(booth.getVendorId())) {
+            throw new RuntimeException("摊位当前不可预订");
+        }
+        Market market = marketMapper.selectById(booth.getMarketId());
+        if (market == null || !Integer.valueOf(1).equals(market.getStatus())) {
+            throw new RuntimeException("集市当前未开放");
+        }
+        if (productMapper.decrementStockIfAvailable(product.getId(), 1) != 1) {
+            throw new RuntimeException("商品库存不足或已下架");
+        }
         User vendor = userMapper.selectById(vendorId);
         User customer = userMapper.selectById(reservation.getUserId());
         String orderNo = "ORD" + DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now())
@@ -137,10 +164,6 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         item.setCreateTime(LocalDateTime.now());
         orderItemMapper.insert(item);
 
-        // 扣减库存
-        product.setStock(product.getStock() - 1);
-        productMapper.updateById(product);
-
         // 更新预定状态
         reservation.setStatus("已确认");
         reservation.setOrderId(order.getId());
@@ -153,10 +176,10 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                 "您的商品「" + product.getName() + "」预定已被摊主确认，订单已生成，请尽快付款",
                 reservation.getId()
         );
-        NotificationEndpoint.sendToUser(reservation.getUserId().toString(), "new_notification");
     }
 
     @Override
+    @Transactional
     public void rejectReservation(Long vendorId, Long reservationId) {
         Reservation reservation = baseMapper.selectById(reservationId);
         if (reservation == null || !"待确认".equals(reservation.getStatus())) {
@@ -165,8 +188,9 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         if (!reservation.getVendorId().equals(vendorId)) {
             throw new RuntimeException("无权操作");
         }
-        reservation.setStatus("已拒绝");
-        baseMapper.updateById(reservation);
+        if (baseMapper.transitionIfPending(reservationId, "已拒绝") != 1) {
+            throw new RuntimeException("预订已被处理，请刷新后重试");
+        }
 
         // 数据库通知 + WebSocket 通知用户
         Product product = productMapper.selectById(reservation.getProductId());
@@ -176,10 +200,10 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                 "您的商品「" + (product != null ? product.getName() : "未知") + "」预定已被摊主拒绝",
                 reservation.getId()
         );
-        NotificationEndpoint.sendToUser(reservation.getUserId().toString(), "new_notification");
     }
 
     @Override
+    @Transactional
     public void cancelReservation(Long userId, Long reservationId) {
         Reservation reservation = baseMapper.selectById(reservationId);
         if (reservation == null || !reservation.getUserId().equals(userId)) {
@@ -188,8 +212,9 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
         if (!"待确认".equals(reservation.getStatus())) {
             throw new RuntimeException("当前状态不可取消");
         }
-        reservation.setStatus("已取消");
-        baseMapper.updateById(reservation);
+        if (baseMapper.transitionIfPending(reservationId, "已取消") != 1) {
+            throw new RuntimeException("预订已被处理，请刷新后重试");
+        }
 
         // 数据库通知 + WebSocket 通知摊主
         Product product = productMapper.selectById(reservation.getProductId());
@@ -199,7 +224,6 @@ public class ReservationServiceImpl extends ServiceImpl<ReservationMapper, Reser
                 "用户 " + getUserName(userId) + " 取消了商品「" + (product != null ? product.getName() : "未知") + "」的预定",
                 reservation.getId()
         );
-        NotificationEndpoint.sendToUser(reservation.getVendorId().toString(), "new_notification");
     }
 
     private ReservationDTO toDTO(Reservation r) {

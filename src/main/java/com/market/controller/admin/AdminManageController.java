@@ -1,6 +1,7 @@
 package com.market.controller.admin;
 
 import com.market.common.Result;
+import com.market.common.AdminOperation;
 import com.market.entity.User;
 import com.market.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ public class AdminManageController {
 
     // 创建管理员（已存在）
     @PostMapping("/create")
+    @AdminOperation("创建集市管理员")
     public Result<String> createAdmin(@RequestBody User user) {
         User currentUser = getCurrentUser();
         userService.createAdmin(currentUser.getId(), user);
@@ -33,6 +35,7 @@ public class AdminManageController {
 
     // 切换管理员状态（启用/停用）
     @PutMapping("/{adminId}/toggle-status")
+    @AdminOperation("切换管理员账号状态")
     public Result<String> toggleStatus(@PathVariable Long adminId) {
         User currentUser = getCurrentUser();
         userService.toggleAdminStatus(currentUser.getId(), adminId);

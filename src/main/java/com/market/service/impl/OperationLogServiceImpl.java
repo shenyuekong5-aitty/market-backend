@@ -22,7 +22,8 @@ public class OperationLogServiceImpl extends ServiceImpl<OperationLogMapper, Ope
         if (end != null) {
             wrapper.le(OperationLog::getCreateTime, end);
         }
-        wrapper.orderByDesc(OperationLog::getCreateTime);
+        wrapper.orderByDesc(OperationLog::getCreateTime)
+                .orderByDesc(OperationLog::getId);
         return baseMapper.selectList(wrapper);
     }
 

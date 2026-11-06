@@ -19,7 +19,8 @@ public class Order {
     private Long boothId;
     private BigDecimal totalAmount;
     private LocalDateTime payTime;
-    private String status;  // 待付款/已付款/已完成/已取消
+    private LocalDateTime completeTime;
+    private String status;  // 待付款/已付款/待取货/已完成/已取消
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

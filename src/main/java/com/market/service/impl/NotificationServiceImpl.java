@@ -7,10 +7,13 @@ import com.market.entity.User;
 import com.market.mapper.NotificationMapper;
 import com.market.mapper.UserMapper;
 import com.market.service.NotificationService;
+import com.market.service.NotificationSseService;
 import com.market.websocket.NotificationEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,11 +24,15 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    private NotificationSseService notificationSseService;
+
     @Override
     public List<Notification> listByReceiver(Long receiverId) {
         return baseMapper.selectList(new LambdaQueryWrapper<Notification>()
                 .eq(Notification::getReceiverId, receiverId)
-                .orderByDesc(Notification::getCreateTime));
+                .orderByDesc(Notification::getCreateTime)
+                .orderByDesc(Notification::getId));
     }
 
     /**
@@ -46,6 +53,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
                         .eq(Notification::getIsRead, 0)
                         // 排序：按照 create_time 字段降序排列，最新的通知排在最前面
                         .orderByDesc(Notification::getCreateTime)
+                        .orderByDesc(Notification::getId)
         );
     }
 
@@ -78,6 +86,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         notification.setIsRead(0);
         notification.setCreateTime(LocalDateTime.now());
         baseMapper.insert(notification);
+        publishAfterCommit(List.of(receiverId));
     }
 
     @Override
@@ -109,7 +118,26 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
             return n;
         }).collect(Collectors.toList());
         saveBatch(notifications);
-        // 通知所有在线用户
-        NotificationEndpoint.broadcast("new_notification");
+        publishAfterCommit(users.stream().map(User::getId).collect(Collectors.toList()));
+    }
+
+    /**
+     * 等数据库事务提交后再推送事件，避免前端收到事件时尚未查询到新通知。
+     */
+    private void publishAfterCommit(List<Long> receiverIds) {
+        Runnable publish = () -> receiverIds.forEach(receiverId -> {
+            notificationSseService.sendToUser(receiverId, "new_notification");
+            NotificationEndpoint.sendToUser(receiverId.toString(), "new_notification");
+        });
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
     }
 }

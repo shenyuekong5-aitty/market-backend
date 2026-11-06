@@ -51,6 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String tokenRole = claims.get("role", String.class);
 
             User user = userService.getByUsername(username);
+            // 每次请求重新取账号状态与角色，避免停用账号或角色变更后旧 Token 继续授权。
             if (user != null && user.getStatus() == 1) {
                 String currentRole = UserRole.effectiveRole(user);
                 if (!currentRole.equals(tokenRole)) {

@@ -22,6 +22,7 @@ public class AiCatalogService {
         String normalized = question.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
         if (!isCatalogQuestion(normalized)) return Optional.empty();
 
+        // 只展示开放集市、已占用摊位的上架商品，避免把不可购买的商品推荐给用户。
         List<Item> items = jdbc.query("""
                 SELECT p.name, p.price, p.stock, b.title AS booth_name, b.id AS booth_id, m.name AS market_name
                 FROM product p
@@ -51,7 +52,8 @@ public class AiCatalogService {
 
     static boolean isCatalogQuestion(String question) {
         if (question.equals("商品") || question.equals("商品列表") || question.equals("商品推荐")) return true;
-        if (question.contains("有什么卖") || question.contains("卖什么") || question.contains("卖啥")) return true;
+        if (List.of("有什么卖", "卖什么", "卖啥", "买什么", "有啥好买", "有什么好买")
+                .stream().anyMatch(question::contains)) return true;
         if (!question.contains("商品")) return false;
         return List.of("哪些", "那些", "什么", "有啥", "有哪", "列表", "推荐", "都有", "有卖", "在售")
                 .stream().anyMatch(question::contains);

@@ -1,6 +1,7 @@
 package com.market.controller.admin;
 
 import com.market.common.Result;
+import com.market.common.AdminOperation;
 import com.market.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ public class AdminNotificationController {
      * @param content 通知内容
      */
     @PostMapping("/send")
+    @AdminOperation("发送系统通知")
     public Result<String> send(@RequestParam String role, @RequestParam String content) {
         notificationService.sendByRole(role, content);
         return Result.success("通知已发送");

@@ -1,23 +1,42 @@
 services:
+  # 定义第一个服务，名字叫 mysql（这个名字可以随便起，用于标识）
   mysql:
+    # 容器启动后的名字，叫 market-mysql
     container_name: market-mysql
+
+    # 使用 mysql 的 8.0 版本镜像
     image: mysql:8.0
+
+    # 环境变量：容器启动时的初始化配置
     environment:
-      MYSQL_ROOT_PASSWORD: market_root_2024   # 根密码
-      MYSQL_DATABASE: market                  # 自动创建的数据库
-      MYSQL_USER: market                      # 普通用户名
-      MYSQL_PASSWORD: market123               # 普通用户密码
+      MYSQL_ROOT_PASSWORD: market_root_2024   # 设置最高权限 root 账号的密码
+      MYSQL_DATABASE: market                  # 启动时自动创建一个叫 market 的数据库
+      MYSQL_USER: market                      # 自动创建一个普通账号，名叫 market
+      MYSQL_PASSWORD: market123               # 普通账号 market 的密码
+
+    # 数据卷挂载：防止容器删了数据丢失
     volumes:
-      - market-db:/var/lib/mysql
+      - market-db:/var/lib/mysql              # 把容器里的数据库文件，映射到宿主机的 market-db 卷里
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro  # 仅在空数据卷首次启动时初始化表结构
+
+    # 端口映射：让外部能连上数据库
     ports:
-      - "5333:3306"                           # 主机端口 5333 映射到容器 3306
+      - "5333:3306"                           # 电脑的 5333 端口 -> 容器的 3306 端口（外部用 5333 连）
+
+    # 网络配置：加入一个局域网
     networks:
-      - market-net
+      - market-net                            # 加入到下面定义的 market-net 网络里
+
+    # 重启策略：只要不是手动停止的，崩溃了或开机了都会自动重启
     restart: unless-stopped
 
+# ====== 全局网络和卷的定义 ======
+
+# 定义网络
 networks:
   market-net:
-    driver: bridge
+    driver: bridge                            # 默认的桥接网络，容器之间可以通过服务名互相 ping 通
 
+# 定义数据卷
 volumes:
-  market-db:
+  market-db:                                  # 声明一个叫 market-db 的卷（Docker 会自动在电脑上找个地方存）

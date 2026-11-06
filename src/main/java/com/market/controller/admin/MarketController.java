@@ -1,6 +1,7 @@
 package com.market.controller.admin;
 
 import com.market.common.Result;
+import com.market.common.AdminOperation;
 import com.market.entity.Market;
 import com.market.entity.User;
 import com.market.service.MarketService;
@@ -25,6 +26,7 @@ public class MarketController {
 
     // 创建集市
     @PostMapping
+    @AdminOperation("创建集市")
     public Result<Market> createMarket(@RequestBody Market market) {
         Long adminId = getCurrentAdminId();
         Market newMarket = marketService.createMarket(market, adminId);
@@ -33,6 +35,7 @@ public class MarketController {
 
     // 更新集市
     @PutMapping("/{id}")
+    @AdminOperation("更新集市资料")
     public Result<Market> updateMarket(@PathVariable Long id, @RequestBody Market market) {
         market.setId(id);
         Long adminId = getCurrentAdminId();
@@ -42,6 +45,7 @@ public class MarketController {
 
     // 切换集市状态
     @PutMapping("/{id}/toggle-status")
+    @AdminOperation("切换集市营业状态")
     public Result<String> toggleStatus(@PathVariable Long id) {
         Long adminId = getCurrentAdminId();
         marketService.toggleMarketStatus(id, adminId);

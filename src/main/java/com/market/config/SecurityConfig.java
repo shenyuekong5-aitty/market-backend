@@ -56,9 +56,12 @@ public class SecurityConfig {
                                 "/api/auth/reset-password",
                                 "/api/sms/send",
                                 "/api/sms/send-reset",
-                                "/uploads/**"
+                                "/uploads/**",
+                                "/products/**",
+                                "/images/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/products", "/api/vendor/markets", "/api/user/booths/**", "/api/user/products").permitAll()
+                        // 先匹配窄权限，再匹配 /api/admin/**；顺序反过来会放宽超级管理员接口。
                         .requestMatchers("/api/admin/manage/**", "/api/admin/notifications/send").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/admin/market", "/api/admin/market/**",
                                 "/api/admin/booths", "/api/admin/booths/**",
@@ -69,16 +72,27 @@ public class SecurityConfig {
                                 "/api/vendor/booth/**",
                                 "/api/vendor/reservations/**",
                                 "/api/vendor/orders/**",
-                                "/api/vendor/income-stats"
+                                "/api/vendor/income-stats",
+                                "/api/vendor/change-booth",
+                                "/api/vendor/return-booth"
                         ).hasRole("VENDOR")
                         .requestMatchers("/api/vendor/**").authenticated()
+                        // 普通用户业务与共享账号接口同在 /api/user 下，先限制业务子路径，
+                        // 再让个人资料等共享接口保持所有已登录角色可用。
+                        .requestMatchers(
+                                "/api/user/cart/**",
+                                "/api/user/orders/**",
+                                "/api/user/reservations/**",
+                                "/api/user/follows/**"
+                        ).hasRole("USER")
                         .requestMatchers(
                                 "/api/user/**",
                                 "/api/notifications/**",
                                 "/api/account/**",
-                                "/api/upload/**",
                                 "/api/sms/send-change-phone"
                         ).authenticated()
+                        .requestMatchers("/api/upload/product-image").hasRole("VENDOR")
+                        .requestMatchers("/api/upload/avatar").authenticated()
                         .anyRequest().authenticated()
                 )
 

@@ -21,10 +21,13 @@ public interface OrderService extends IService<Order> {
     //订单列表--小贩端
     List<Order> listVendorOrders(Long vendorId);
 
+    /** 小贩完成备货，订单进入待取货状态 */
+    void markReady(Long vendorId, Long orderId);
+
     //订单
     Map<String, Object> getAdminIncomeStats(Long adminId);
     Map<String, Object> getVendorIncomeStats(Long vendorId);
 
-    //收获
+    // 用户取货后确认完成
     void confirmReceive(Long userId, Long orderId);
 }

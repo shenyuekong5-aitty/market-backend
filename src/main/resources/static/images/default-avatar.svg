@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title">
+  <title id="title">智慧集市默认头像</title>
+  <rect width="160" height="160" rx="80" fill="#e4f0eb"/>
+  <circle cx="80" cy="61" r="29" fill="#6b9b88"/>
+  <path d="M29 145c5-34 24-52 51-52s46 18 51 52" fill="#397765"/>
+  <path d="M65 29c5-13 16-20 32-21-3 15-13 24-30 27" fill="#f08a69"/>
+</svg>

@@ -24,6 +24,12 @@ public class VendorOrderController {
         return Result.success(orderService.listVendorOrders(vendorId));
     }
 
+    @PutMapping("/{orderId}/ready")
+    public Result<String> markReady(@PathVariable Long orderId) {
+        orderService.markReady(getCurrentVendorId(), orderId);
+        return Result.success("已标记备货完成，等待用户取货");
+    }
+
     // 获取当前摊主订单明细
     @GetMapping("/{orderId}/items")
     public Result<List<OrderItem>> getItems(@PathVariable Long orderId) {

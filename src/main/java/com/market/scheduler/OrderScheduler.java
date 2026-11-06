@@ -3,14 +3,12 @@ package com.market.scheduler;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.market.entity.Order;
 import com.market.entity.OrderItem;
-import com.market.entity.Product;
 import com.market.entity.Reservation;
 import com.market.mapper.OrderMapper;
 import com.market.mapper.OrderItemMapper;
 import com.market.mapper.ProductMapper;
 import com.market.mapper.ReservationMapper;
 import com.market.service.NotificationService;
-import com.market.websocket.NotificationEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -43,19 +41,14 @@ public class OrderScheduler {
                 .le(Order::getCreateTime, deadline));
 
         for (Order order : orders) {
-            // 1. 取消订单
-            order.setStatus("已取消");
-            orderMapper.updateById(order);
+            // 支付或手动取消可能与定时任务并发；仅一次状态转换成功时才恢复库存。
+            if (orderMapper.cancelIfExpired(order.getId(), deadline) != 1) continue;
 
-            // 2. 恢复库存
+            // 恢复库存时在数据库内原子递增，避免覆盖其他订单的扣减。
             List<OrderItem> items = orderItemMapper.selectList(
                     new LambdaQueryWrapper<OrderItem>().eq(OrderItem::getOrderId, order.getId()));
             for (OrderItem item : items) {
-                Product product = productMapper.selectById(item.getProductId());
-                if (product != null) {
-                    product.setStock(product.getStock() + item.getQuantity());
-                    productMapper.updateById(product);
-                }
+                productMapper.incrementStock(item.getProductId(), item.getQuantity());
             }
 
             // 3. 取消关联预定
@@ -73,7 +66,6 @@ public class OrderScheduler {
                         "您的预定已被取消（订单超时未支付）",
                         reservation.getId()
                 );
-                NotificationEndpoint.sendToUser(reservation.getUserId().toString(), "new_notification");
             }
 
             // 4. 通知订单客户
@@ -83,7 +75,6 @@ public class OrderScheduler {
                     "您的订单 " + order.getOrderNo() + " 因超时未支付已自动取消",
                     order.getId()
             );
-            NotificationEndpoint.sendToUser(order.getCustomerId().toString(), "new_notification");
 
             // 5. 通知摊主
             notificationService.createNotification(
@@ -92,7 +83,6 @@ public class OrderScheduler {
                     "订单 " + order.getOrderNo() + " 因用户超时未支付已自动取消",
                     order.getId()
             );
-            NotificationEndpoint.sendToUser(order.getVendorId().toString(), "new_notification");
         }
     }
 }

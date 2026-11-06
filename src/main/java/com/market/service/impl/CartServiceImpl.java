@@ -24,6 +24,7 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
     @Override
     @Transactional
     public void addToCart(Long userId, Long productId, Integer quantity) {
+        if (quantity == null || quantity <= 0) throw new IllegalArgumentException("商品数量必须大于 0");
         Product product = productMapper.selectById(productId);
         if (product == null || !"上架".equals(product.getSaleStatus())) {
             throw new RuntimeException("商品不存在或已下架");
@@ -36,6 +37,9 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
                 .eq(Cart::getUserId, userId)
                 .eq(Cart::getProductId, productId));
         if (exist != null) {
+            if (exist.getQuantity() + quantity > product.getStock()) {
+                throw new RuntimeException("购物车数量超过当前库存");
+            }
             exist.setQuantity(exist.getQuantity() + quantity);
             baseMapper.updateById(exist);
         } else {
@@ -50,11 +54,15 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements Ca
     @Override
     @Transactional
     public void updateQuantity(Long userId, Long cartId, Integer quantity) {
+        if (quantity == null || quantity <= 0) throw new IllegalArgumentException("商品数量必须大于 0");
         Cart cart = baseMapper.selectById(cartId);
         if (cart == null || !cart.getUserId().equals(userId)) {
             throw new RuntimeException("无权操作");
         }
         Product product = productMapper.selectById(cart.getProductId());
+        if (product == null || !"上架".equals(product.getSaleStatus())) {
+            throw new RuntimeException("商品不存在或已下架");
+        }
         if (quantity > product.getStock()) {
             throw new RuntimeException("库存不足");
         }

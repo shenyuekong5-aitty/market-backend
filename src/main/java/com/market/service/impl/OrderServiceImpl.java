@@ -7,7 +7,6 @@ import com.market.mapper.*;
 import com.market.service.CartService;
 import com.market.service.NotificationService;
 import com.market.service.OrderService;
-import com.market.websocket.NotificationEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,8 +61,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         Map<Long, Booth> boothMap = booths.stream().collect(Collectors.toMap(Booth::getId, b -> b));
         Map<Long, User> userMap = vendors.stream().collect(Collectors.toMap(User::getId, u -> u));
 
-        Map<Long, List<Cart>> vendorCartMap = new HashMap<>();
+        // 同一购物车按摊主拆单，后续每个摊主分别处理自己的订单。
+        Map<Long, List<Cart>> vendorCartMap = new TreeMap<>();
         for (Cart cart : cartItems) {
+            if (cart.getQuantity() == null || cart.getQuantity() <= 0) {
+                throw new RuntimeException("购物车商品数量无效");
+            }
             Product p = productMap.get(cart.getProductId());
             if (p == null || !"上架".equals(p.getSaleStatus())) {
                 throw new RuntimeException("商品 " + cart.getProductId() + " 已下架或不存在");
@@ -72,7 +75,13 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 throw new RuntimeException("商品 " + p.getName() + " 库存不足");
             }
             Booth b = boothMap.get(p.getBoothId());
-            if (b == null) throw new RuntimeException("摊位不存在");
+            if (b == null || !"已占用".equals(b.getStatus()) || b.getVendorId() == null) {
+                throw new RuntimeException("摊位当前不可下单");
+            }
+            Market market = marketMapper.selectById(b.getMarketId());
+            if (market == null || !Integer.valueOf(1).equals(market.getStatus())) {
+                throw new RuntimeException("集市当前未开放");
+            }
             vendorCartMap.computeIfAbsent(b.getVendorId(), k -> new ArrayList<>()).add(cart);
         }
 
@@ -84,6 +93,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         for (Map.Entry<Long, List<Cart>> entry : vendorCartMap.entrySet()) {
             Long vendorId = entry.getKey();
             List<Cart> items = entry.getValue();
+            items.sort(Comparator.comparing(Cart::getProductId));
             User vendor = userMap.get(vendorId);
             String vendorName = vendor != null ? vendor.getUsername() : "未知";
 
@@ -121,9 +131,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             for (OrderItem item : orderItems) {
                 item.setOrderId(order.getId());
                 orderItemMapper.insert(item);
-                Product p = productMap.get(item.getProductId());
-                p.setStock(p.getStock() - item.getQuantity());
-                productMapper.updateById(p);
+                if (productMapper.decrementStockIfAvailable(item.getProductId(), item.getQuantity()) != 1) {
+                    throw new RuntimeException("商品「" + item.getProductName() + "」库存不足或已下架");
+                }
             }
             orders.add(order);
 
@@ -134,7 +144,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                     "您收到一笔新订单：" + order.getOrderNo() + "，请等待用户付款",
                     order.getId()
             );
-            NotificationEndpoint.sendToUser(order.getVendorId().toString(), "new_notification");
         }
 
         cartService.clearCart(userId);   // 所有通知发送完毕后再清空购物车
@@ -144,7 +153,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     public List<Order> listUserOrders(Long userId) {
         return baseMapper.selectList(new LambdaQueryWrapper<Order>()
                 .eq(Order::getCustomerId, userId)
-                .orderByDesc(Order::getCreateTime));
+                .orderByDesc(Order::getCreateTime)
+                .orderByDesc(Order::getId));
     }
 
     @Override
@@ -157,18 +167,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (!"待付款".equals(order.getStatus())) {
             throw new RuntimeException("订单状态不允许支付");
         }
-        order.setStatus("已付款");
-        order.setPayTime(LocalDateTime.now());
-        baseMapper.updateById(order);
+        if (baseMapper.payIfPending(orderId, LocalDateTime.now()) != 1) {
+            throw new RuntimeException("订单状态已变化，请刷新后重试");
+        }
 
         // 通知摊主
         notificationService.createNotification(
                 order.getVendorId(),
                 "订单状态",
-                "订单 " + order.getOrderNo() + " 已支付，请尽快发货",
+                "订单 " + order.getOrderNo() + " 已支付，请尽快备货",
                 order.getId()
         );
-        NotificationEndpoint.sendToUser(order.getVendorId().toString(), "new_notification");
     }
 
     @Override
@@ -191,20 +200,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (order == null || !order.getCustomerId().equals(userId)) {
             throw new RuntimeException("订单不存在或无权操作");
         }
-        if (!"待付款".equals(order.getStatus()) && !"已付款".equals(order.getStatus())) {
-            throw new RuntimeException("订单状态不允许取消");
+        if (!"待付款".equals(order.getStatus())) {
+            throw new RuntimeException("只有待付款订单可以取消；已付款订单请联系摊主处理");
+        }
+        if (baseMapper.cancelIfPending(orderId) != 1) {
+            throw new RuntimeException("订单状态已变化，请刷新后重试");
         }
         List<OrderItem> items = orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>()
                 .eq(OrderItem::getOrderId, orderId));
         for (OrderItem item : items) {
-            Product p = productMapper.selectById(item.getProductId());
-            if (p != null) {
-                p.setStock(p.getStock() + item.getQuantity());
-                productMapper.updateById(p);
-            }
+            productMapper.incrementStock(item.getProductId(), item.getQuantity());
         }
-        order.setStatus("已取消");
-        baseMapper.updateById(order);
 
         // 同步取消关联预定
         Reservation reservation = reservationMapper.selectOne(
@@ -221,7 +227,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                     "您的预定已被取消（订单已取消）",
                     reservation.getId()
             );
-            NotificationEndpoint.sendToUser(reservation.getUserId().toString(), "new_notification");
         }
 
         // 通知摊主
@@ -231,14 +236,35 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 "订单 " + order.getOrderNo() + " 已被用户取消",
                 order.getId()
         );
-        NotificationEndpoint.sendToUser(order.getVendorId().toString(), "new_notification");
     }
 
     @Override
     public List<Order> listVendorOrders(Long vendorId) {
         return baseMapper.selectList(new LambdaQueryWrapper<Order>()
                 .eq(Order::getVendorId, vendorId)
-                .orderByDesc(Order::getCreateTime));
+                .orderByDesc(Order::getCreateTime)
+                .orderByDesc(Order::getId));
+    }
+
+    @Override
+    @Transactional
+    public void markReady(Long vendorId, Long orderId) {
+        Order order = baseMapper.selectById(orderId);
+        if (order == null || !vendorId.equals(order.getVendorId())) {
+            throw new RuntimeException("订单不存在或无权操作");
+        }
+        if (!"已付款".equals(order.getStatus())) {
+            throw new RuntimeException("只有已付款订单可以标记为备货完成");
+        }
+        if (baseMapper.markReadyIfPaid(orderId) != 1) {
+            throw new RuntimeException("订单状态已变化，请刷新后重试");
+        }
+        notificationService.createNotification(
+                order.getCustomerId(),
+                "订单状态",
+                "订单 " + order.getOrderNo() + " 已备好，请前往摊位取货",
+                order.getId()
+        );
     }
 
     @Override
@@ -261,7 +287,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         LocalDate today = LocalDate.now();
         BigDecimal todayIncome = orders.stream()
-                .filter(o -> o.getCreateTime().toLocalDate().equals(today))
+                .filter(o -> incomeTime(o).toLocalDate().equals(today))
                 .map(Order::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -269,7 +295,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         for (int i = 6; i >= 0; i--) {
             LocalDate date = LocalDate.now().minusDays(i);
             BigDecimal dayIncome = orders.stream()
-                    .filter(o -> o.getCreateTime().toLocalDate().equals(date))
+                    .filter(o -> incomeTime(o).toLocalDate().equals(date))
                     .map(Order::getTotalAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             Map<String, Object> point = new HashMap<>();
@@ -315,7 +341,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         LocalDate today = LocalDate.now();
         BigDecimal todayIncome = orders.stream()
-                .filter(o -> o.getCreateTime().toLocalDate().equals(today))
+                .filter(o -> incomeTime(o).toLocalDate().equals(today))
                 .map(Order::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -323,7 +349,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         for (int i = 6; i >= 0; i--) {
             LocalDate date = LocalDate.now().minusDays(i);
             BigDecimal dayIncome = orders.stream()
-                    .filter(o -> o.getCreateTime().toLocalDate().equals(date))
+                    .filter(o -> incomeTime(o).toLocalDate().equals(date))
                     .map(Order::getTotalAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             Map<String, Object> point = new HashMap<>();
@@ -334,7 +360,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
         List<Map<String, Object>> orderDetails = new ArrayList<>();
         List<Order> recentOrders = orders.stream()
-                .sorted((a,b) -> b.getCreateTime().compareTo(a.getCreateTime()))
+                .sorted((a,b) -> incomeTime(b).compareTo(incomeTime(a)))
                 .limit(20)
                 .collect(Collectors.toList());
         for (Order o : recentOrders) {
@@ -342,6 +368,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             detail.put("orderNo", o.getOrderNo());
             detail.put("totalAmount", o.getTotalAmount());
             detail.put("createTime", o.getCreateTime());
+            detail.put("completeTime", o.getCompleteTime());
             List<OrderItem> items = orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>()
                     .eq(OrderItem::getOrderId, o.getId()));
             List<String> productNames = items.stream().map(OrderItem::getProductName).collect(Collectors.toList());
@@ -366,11 +393,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (order == null || !order.getCustomerId().equals(userId)) {
             throw new RuntimeException("订单不存在或无权操作");
         }
-        if (!"已付款".equals(order.getStatus())) {
-            throw new RuntimeException("只有已付款的订单才能确认收货");
+        if (!"待取货".equals(order.getStatus())) {
+            throw new RuntimeException("只有待取货订单才能确认收货");
         }
-        order.setStatus("已完成");
-        baseMapper.updateById(order);
+        if (baseMapper.completeIfReady(orderId, LocalDateTime.now()) != 1) {
+            throw new RuntimeException("订单状态已变化，请刷新后重试");
+        }
 
         // 同步更新关联预定的状态为"已完成"
         Reservation reservation = reservationMapper.selectOne(
@@ -389,6 +417,15 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 "订单 " + order.getOrderNo() + " 用户已确认收货，交易完成",
                 order.getId()
         );
-        NotificationEndpoint.sendToUser(order.getVendorId().toString(), "new_notification");
+    }
+
+    /**
+     * 收入归属以交易完成时间为准。兼容旧数据时依次回退到更新时间、支付时间和创建时间。
+     */
+    private LocalDateTime incomeTime(Order order) {
+        if (order.getCompleteTime() != null) return order.getCompleteTime();
+        if (order.getUpdateTime() != null) return order.getUpdateTime();
+        if (order.getPayTime() != null) return order.getPayTime();
+        return order.getCreateTime();
     }
 }

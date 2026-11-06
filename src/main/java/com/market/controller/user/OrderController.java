@@ -49,7 +49,7 @@ public class OrderController {
     public Result<String> pay(@PathVariable Long orderId) {
         Long userId = getCurrentUserId();
         orderService.payOrder(userId, orderId);
-        return Result.success("支付成功");
+        return Result.success("模拟付款成功");
     }
 
     // 取消订单
@@ -68,11 +68,11 @@ public class OrderController {
         throw new RuntimeException("用户未登录");
     }
 
-    //收获
+    // 用户到摊位取货后确认完成
     @PutMapping("/{orderId}/confirm-receive")
     public Result<String> confirmReceive(@PathVariable Long orderId) {
         Long userId = getCurrentUserId();
         orderService.confirmReceive(userId, orderId);
-        return Result.success("已确认收货，订单完成");
+        return Result.success("已确认取货，订单完成");
     }
 }

@@ -38,6 +38,8 @@ import com.market.service.UserService;
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
+    private static final String DEFAULT_AVATAR = "/images/default-avatar.svg";
+
     @Autowired
     private PasswordEncoder passwordEncoder;
 
@@ -67,19 +69,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new RuntimeException("验证码错误或已过期");
         }
 
-        // 2. 检查账号是否已存在
+        // 2. 检查账号和手机号是否已存在
         if (baseMapper.selectCount(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, user.getUsername())) > 0) {
             throw new RuntimeException("账号已存在");
         }
+        if (baseMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getPhone, user.getPhone())) > 0) {
+            throw new RuntimeException("手机号已被注册");
+        }
 
-        // 3. 加密密码并保存
+        // 3. 公开注册只允许普通用户和小贩，管理员必须由超级管理员创建。
+        String requestedRole = user.getRole();
+        if (!"vendor".equals(requestedRole)) {
+            requestedRole = "user";
+        }
+
+        // 4. 加密密码、补齐安全默认值并保存。
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        user.setRole("user");   // 注册默认普通用户
+        user.setRole(requestedRole);
+        user.setIsSuperAdmin(0);
+        if (user.getAvatar() == null || user.getAvatar().isBlank()) {
+            user.setAvatar(DEFAULT_AVATAR);
+        }
         user.setStatus(1);
         baseMapper.insert(user);
 
-        // 4. 删除验证码缓存
+        // 5. 删除验证码缓存
         redisTemplate.delete(key);
     }
 
@@ -248,7 +264,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 1. 直接更新的基础字段
         currentUser.setNickname(request.getNickname());
-        currentUser.setAvatar(request.getAvatar());
+        if (request.getAvatar() != null && !request.getAvatar().isBlank()) {
+            currentUser.setAvatar(request.getAvatar());
+        } else if (currentUser.getAvatar() == null || currentUser.getAvatar().isBlank()) {
+            currentUser.setAvatar(DEFAULT_AVATAR);
+        }
         currentUser.setGender(request.getGender());
 
         // 2. 处理手机号修改（需双重验证）
@@ -335,6 +355,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     //  注销账号--初步办法
     @Override
     public boolean canDeactivate(Long userId) {
+        User currentUser = baseMapper.selectById(userId);
+        if (UserRole.isAdmin(currentUser)) {
+            return false;
+        }
         // 1. 检查是否占用摊位（作为小贩）
         Long boothCount = boothMapper.selectCount(
                 new LambdaQueryWrapper<Booth>()
@@ -353,7 +377,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                                 .or()
                                 .eq(Order::getVendorId, userId)
                         )
-                        .in(Order::getStatus, "待付款", "已付款") // 未完成的订单状态
+                        .in(Order::getStatus, "待付款", "已付款", "待取货") // 未完成的订单状态
         );
         if (orderCount > 0) {
             return false;
@@ -428,6 +452,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         newAdmin.setPassword(passwordEncoder.encode(newAdmin.getPassword()));
         newAdmin.setRole(UserRole.MARKET_ADMIN);
         newAdmin.setIsSuperAdmin(0);   // 创建的是普通管理员
+        if (newAdmin.getAvatar() == null || newAdmin.getAvatar().isBlank()) {
+            newAdmin.setAvatar(DEFAULT_AVATAR);
+        }
         newAdmin.setStatus(1);
         baseMapper.insert(newAdmin);
     }

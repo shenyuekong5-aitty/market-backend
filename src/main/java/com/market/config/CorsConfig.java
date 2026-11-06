@@ -2,6 +2,7 @@ package com.market.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
@@ -13,13 +14,21 @@ import org.springframework.web.filter.CorsFilter;
 @Configuration
 public class CorsConfig {
 
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
+    private String allowedOrigins;
+
     @Bean
     public CorsFilter corsFilter() {
         // 1. 创建跨域配置对象
         CorsConfiguration config = new CorsConfiguration();
 
-        // 2. 允许所有来源（开发阶段方便，生产环境建议指定具体域名）
-        config.addAllowedOriginPattern("*");
+        // 2. 默认只允许本机前端；部署时用 app.cors.allowed-origins 配置实际域名。
+        for (String origin : allowedOrigins.split(",")) {
+            String value = origin.trim();
+            if (!value.isEmpty()) {
+                config.addAllowedOrigin(value);
+            }
+        }
 
         // 3. 允许所有 HTTP 方法（GET, POST, PUT, DELETE 等）
         config.addAllowedMethod("*");

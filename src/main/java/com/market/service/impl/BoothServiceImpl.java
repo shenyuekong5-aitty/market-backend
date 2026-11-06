@@ -43,6 +43,12 @@ public class BoothServiceImpl extends ServiceImpl<BoothMapper, Booth> implements
         if (market == null || !market.getAdminId().equals(adminId)) {
             throw new RuntimeException("无权在该集市下创建摊位");
         }
+        long boothCount = baseMapper.selectCount(new LambdaQueryWrapper<Booth>()
+                .eq(Booth::getMarketId, booth.getMarketId()));
+        if (market.getMaxBooths() != null && market.getMaxBooths() > 0
+                && boothCount >= market.getMaxBooths()) {
+            throw new RuntimeException("已达到该集市的摊位数量上限");
+        }
         // 管理员只负责创建摊位位置，经营信息留空或给默认值
         if (booth.getTitle() == null || booth.getTitle().isEmpty()) {
             booth.setTitle("新摊位");
